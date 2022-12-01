@@ -137,6 +137,9 @@ int tfs_sym_link(char const *target, char const *link_name) {
     (void)link_name;
     // ^ this is a trick to keep the compiler from complaining about unused
     // variables. TODO: remove
+    
+
+
 
     PANIC("TODO: tfs_sym_link");
 }
@@ -241,10 +244,6 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    (void)source_path;
-    (void)dest_path;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
 
     FILE* fd = fopen(source_path, "r");
     int fdo = tfs_open(dest_path, TFS_O_APPEND | TFS_O_TRUNC | TFS_O_CREAT);

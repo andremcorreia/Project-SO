@@ -229,7 +229,6 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         // The offset associated with the file handle is incremented accordingly
         file->of_offset += to_read;
     }
-
     return (ssize_t)to_read;
 }
 
@@ -248,29 +247,24 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     // variables. TODO: remove
 
     FILE* fd = fopen(source_path, "r");
-    FILE* fdo = fopen(dest_path, "w+");
-    if (fd < 0){
-        PANIC("open error: %s\n");
+    int fdo = tfs_open(dest_path, TFS_O_APPEND | TFS_O_TRUNC | TFS_O_CREAT);
+    if (!fd){
+        //PANIC("open error: %s\n");
         return -1;
     }
 
-    char buffer[128];
-    memset(buffer, 0, sizeof(buffer));
+    char buffer[1000];
+    memset(buffer,0,sizeof(buffer));
 
-    int bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd);
-    int bytes_written = fwrite(buffer, sizeof(buffer), sizeof(char), fdo);
-    if (bytes_read < 0){
-        PANIC("read error: %s\n");
-        return -1;
-    }
+
+    size_t bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd); 
+    ssize_t bytes_written = tfs_write(fdo, buffer, bytes_read);
     if (bytes_written < 0){
-        PANIC("write error: %s\n");
+        //PANIC("write error: %s\n");
         return -1;
-    }    
-
+    } 
 
     fclose(fd);
-    fclose(fdo);
-    PANIC("TODO: tfs_copy_from_external_fs");
+    tfs_close(fdo);
     return 1;
 }

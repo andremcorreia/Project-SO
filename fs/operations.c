@@ -249,11 +249,24 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     FILE* fd = fopen(source_path, "r");
     FILE* fdo = fopen(dest_path, "w+");
-
+    if (fd < 0){
+        PANIC("open error: %s\n");
+        return -1;
+    }
 
     char buffer[128];
-    int read_bytes = fread(buffer, sizeof(char), sizeof(buffer), fd);
-    int written_bytes = fwrite(buffer, sizeof(buffer), sizeof(char), fdo);
+    memset(buffer, 0, sizeof(buffer));
+
+    int bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd);
+    int bytes_written = fwrite(buffer, sizeof(buffer), sizeof(char), fdo);
+    if (bytes_read < 0){
+        PANIC("read error: %s\n");
+        return -1;
+    }
+    if (bytes_written < 0){
+        PANIC("write error: %s\n");
+        return -1;
+    }    
 
 
     fclose(fd);

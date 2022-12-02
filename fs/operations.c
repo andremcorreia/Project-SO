@@ -145,12 +145,16 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    size_t i_num_link = inode_create(T_HARD_LINK);
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
-    PANIC("TODO: tfs_link");
+    if (add_dir_entry(root_dir_inode, link_name + 1, i_num_link) == -1) {
+        inode_delete(i_num_link);
+        return -1; // no space in directory
+
+    }  
+    size_t i_num_target = tfs_lookup(target, root_dir_inode);
+    inode_get(i_num_link)->i_data_block = inode_get(i_num_target)->i_data_block;
 }
 
 int tfs_close(int fhandle) {

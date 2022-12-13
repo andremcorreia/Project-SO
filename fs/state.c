@@ -206,44 +206,44 @@ int inode_create(inode_type i_type) {
 
     inode->i_node_type = i_type;
     switch (i_type) {
-    case T_DIRECTORY: {
-        // Initializes directory (filling its block with empty entries, labeled
-        // with inumber==-1)
-        int b = data_block_alloc();
-        if (b == -1) {
-            // ensure fields are initialized
-            inode->i_size = 0;
-            inode->i_data_block = -1;
+        case T_DIRECTORY: {
+            // Initializes directory (filling its block with empty entries, labeled
+            // with inumber==-1)
+            int b = data_block_alloc();
+            if (b == -1) {
+                // ensure fields are initialized
+                inode->i_size = 0;
+                inode->i_data_block = -1;
 
-            // run regular deletion process
-            inode_delete(inumber);
-            return -1;
+                // run regular deletion process
+                inode_delete(inumber);
+                return -1;
+            }
+
+            inode_table[inumber].i_size = BLOCK_SIZE;
+            inode_table[inumber].i_data_block = b;
+
+            dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(b);
+            ALWAYS_ASSERT(dir_entry != NULL,
+                        "inode_create: data block freed while in use");
+
+            for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
+                dir_entry[i].d_inumber = -1;
+            }
+        } break;
+
+        case T_FILE:
+        case T_HARD_LINK:
+            // In case of a new file, simply sets its size to 0
+            inode_table[inumber].i_size = 0;
+            inode_table[inumber].i_data_block = -1;
+            inode_table[inumber].hard_link_counter = 1;
+            break;
+        case T_SOFT_LINK:
+            break;
+        default: 
+            PANIC("inode_create: unknown file type");
         }
-
-        inode_table[inumber].i_size = BLOCK_SIZE;
-        inode_table[inumber].i_data_block = b;
-
-        dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(b);
-        ALWAYS_ASSERT(dir_entry != NULL,
-                      "inode_create: data block freed while in use");
-
-        for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
-            dir_entry[i].d_inumber = -1;
-        }
-    } break;
-
-    case T_FILE:
-    case T_HARD_LINK:
-        // In case of a new file, simply sets its size to 0
-        inode_table[inumber].i_size = 0;
-        inode_table[inumber].i_data_block = -1;
-        //inode_table[inumber].hard_link_counter = malloc(sizeof(int));
-
-        break;
-    
-    default: 
-        PANIC("inode_create: unknown file type");
-    }
 
     return inumber;
 }
@@ -385,21 +385,21 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
     if (inode->i_node_type != T_DIRECTORY) {
         return -1; // not a directory
     }
-
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     ALWAYS_ASSERT(dir_entry != NULL,
                   "find_in_dir: directory inode must have a data block");
-
     // Iterates over the directory entries looking for one that has the target
     // name
     for (int i = 0; i < MAX_DIR_ENTRIES; i++)
+        
         if ((dir_entry[i].d_inumber != -1) &&
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
 
             int sub_inumber = dir_entry[i].d_inumber;
             return sub_inumber;
         }
+        
 
     return -1; // entry not found
 }
@@ -520,3 +520,4 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
 
     return &open_file_table[fhandle];
 }
+

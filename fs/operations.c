@@ -66,7 +66,6 @@ static int tfs_lookup(char const *name, inode_t const *root_inode) {
     if (!valid_pathname(name)) {
         return -1;
     }
-
     // skip the initial '/' character
     name++;
 
@@ -78,7 +77,6 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     if (!valid_pathname(name)) {
         return -1;
     }
-
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     ALWAYS_ASSERT(root_dir_inode != NULL,
                   "tfs_open: root dir inode must exist");
@@ -145,16 +143,26 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
-    size_t i_num_link = inode_create(T_HARD_LINK);
+    if (!valid_pathname(link_name)) {
+        return -1;
+    }
+
+    int i_num_link = inode_create(T_HARD_LINK);
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+
+    
+    int i_num_target = tfs_lookup(target, root_dir_inode);
+    inode_get(i_num_link)->i_size = inode_get(i_num_target)->i_size;
+    inode_get(i_num_link)->i_data_block = inode_get(i_num_target)->i_data_block;
+    inode_get(i_num_link)->hard_link_counter = inode_get(i_num_target)->hard_link_counter + 1;
+    inode_get(i_num_target)->hard_link_counter ++;
 
     if (add_dir_entry(root_dir_inode, link_name + 1, i_num_link) == -1) {
         inode_delete(i_num_link);
         return -1; // no space in directory
+    }
 
-    }  
-    size_t i_num_target = tfs_lookup(target, root_dir_inode);
-    inode_get(i_num_link)->i_data_block = inode_get(i_num_target)->i_data_block;
+    return 0;
 }
 
 int tfs_close(int fhandle) {

@@ -232,14 +232,12 @@ int inode_create(inode_type i_type) {
             }
         } break;
 
+        case T_SYM_LINK:
         case T_FILE:
-        case T_HARD_LINK:
             // In case of a new file, simply sets its size to 0
             inode_table[inumber].i_size = 0;
             inode_table[inumber].i_data_block = -1;
             inode_table[inumber].hard_link_counter = 1;
-            break;
-        case T_SOFT_LINK:
             break;
         default: 
             PANIC("inode_create: unknown file type");

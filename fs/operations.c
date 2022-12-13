@@ -88,7 +88,10 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
-
+        // The file is a symbolic link, -1 if doesnt exist
+        if(inode->i_node_type == T_SYM_LINK){
+            return tfs_open(inode->i_data_block, mode);
+        }
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
             if (inode->i_size > 0) {
@@ -96,6 +99,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
                 inode->i_size = 0;
             }
         }
+
         // Determine initial offset
         if (mode & TFS_O_APPEND) {
             offset = inode->i_size;
@@ -109,7 +113,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         if (inum == -1) {
             return -1; // no space in inode table
         }
-
+        
         // Add entry in the root directory
         if (add_dir_entry(root_dir_inode, name + 1, inum) == -1) {
             inode_delete(inum);
@@ -131,36 +135,47 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
-    
 
-
-
-    PANIC("TODO: tfs_sym_link");
-}
-
-int tfs_link(char const *target, char const *link_name) {
     if (!valid_pathname(link_name)) {
         return -1;
     }
-
-    int i_num_link = inode_create(T_HARD_LINK);
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-
     
-    int i_num_target = tfs_lookup(target, root_dir_inode);
-    inode_get(i_num_link)->i_size = inode_get(i_num_target)->i_size;
-    inode_get(i_num_link)->i_data_block = inode_get(i_num_target)->i_data_block;
-    inode_get(i_num_link)->hard_link_counter = inode_get(i_num_target)->hard_link_counter + 1;
-    inode_get(i_num_target)->hard_link_counter ++;
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    int sym_inumber = inode_create(T_FILE);
+    inode_t *sym_link = inode_get(sym_inumber);
+    
+    sym_link->i_size = data_block_alloc();
+    sym_link->i_data_block = target;
 
-    if (add_dir_entry(root_dir_inode, link_name + 1, i_num_link) == -1) {
-        inode_delete(i_num_link);
+    if (add_dir_entry(root_dir_inode, link_name + 1, sym_inumber) == -1) {
         return -1; // no space in directory
     }
+    //falta ver nulls
+}
+
+int tfs_link(char const *target, char const *link_name) {
+
+    if (!valid_pathname(link_name)) {
+        return -1;
+    }
+    
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+
+    int i_num_target = tfs_lookup(target, root_dir_inode);
+    inode_t *link = inode_get(i_num_target);
+
+    if(link->is_sym_link == true){
+        return -1;
+    }
+
+    if(link == NULL){
+        return -1;
+    }
+
+    if (add_dir_entry(root_dir_inode, link_name + 1, i_num_target) == -1) {
+        return -1; // no space in directory
+    }
+    link->hard_link_counter++;
 
     return 0;
 }
@@ -248,11 +263,26 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_unlink(char const *target) {
-    (void)target;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    int i_num_target = tfs_lookup(target, root_dir_inode);
 
-    PANIC("TODO: tfs_unlink");
+    if(i_num_target == -1){
+        return -1;
+    }
+
+    inode_t *target_node = inode_get(i_num_target);
+    if(target_node->i_node_type == T_SYM_LINK){
+        inode_delete(i_num_target);´
+        return 0;
+    }
+
+    if(target_node->hard_link_counter == 1){
+        inode_delete(i_num_target);
+        return 0;
+    }
+    target_node->hard_link_counter--;
+    clear_dir_entry(target_node, target);
+    //falta ver nulls
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {

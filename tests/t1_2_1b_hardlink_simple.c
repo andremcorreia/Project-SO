@@ -44,7 +44,6 @@ void write_contents(char const *path) {
 
 int main() {
     assert(tfs_init(NULL) != -1);
-    printf("%s\n","passed 1");
     // Write to symlink and read original file
     {
         int f = tfs_open(target_path1, TFS_O_CREAT);
@@ -53,14 +52,10 @@ int main() {
 
         assert_empty_file(target_path1); // sanity check
     }
-    printf("%s\n","passed 2");
     assert(tfs_link(target_path1, link_path1) != -1);
-    printf("%s\n","passed 3");
     assert_empty_file(link_path1);
-    printf("%s\n","passed 4");
     write_contents(link_path1);
     assert_contents_ok(target_path1);
-    printf("%s\n","passed 5");
 
     // Write to original file and read through symlink
     {
@@ -72,13 +67,10 @@ int main() {
 
         assert_contents_ok(target_path2); // sanity check
     }
-    printf("%s\n","passed 6");
     assert(tfs_link(target_path2, link_path2) != -1);
     assert_contents_ok(link_path2);
 
     assert(tfs_destroy() != -1);
-
-    printf("Successful test.\n");
 
     return 0;
 }

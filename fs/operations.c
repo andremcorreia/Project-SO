@@ -90,7 +90,8 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
                       "tfs_open: directory files must have an inode");
         // The file is a symbolic link, -1 if doesnt exist
         if(inode->i_node_type == T_SYM_LINK){
-            return tfs_open(inode->i_data_block, mode);
+            add_to_open_file_table(inum, sizeof(data_block_get(inode->i_data_block)));
+            return tfs_open(data_block_get(inode->i_data_block), mode);
         }
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
@@ -144,39 +145,39 @@ int tfs_sym_link(char const *target, char const *link_name) {
     int sym_inumber = inode_create(T_FILE);
     inode_t *sym_link = inode_get(sym_inumber);
     
-    sym_link->i_size = data_block_alloc();
-    sym_link->i_data_block = target;
+    sym_link->i_size = sizeof(target);
+    char* ptr = data_block_get(sym_link->i_data_block);
+    strcpy(ptr, target);
 
     if (add_dir_entry(root_dir_inode, link_name + 1, sym_inumber) == -1) {
         return -1; // no space in directory
     }
     //falta ver nulls
+    return 0;
 }
 
 int tfs_link(char const *target, char const *link_name) {
-
-    if (!valid_pathname(link_name)) {
-        return -1;
-    }
     
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
     int i_num_target = tfs_lookup(target, root_dir_inode);
-    inode_t *link = inode_get(i_num_target);
-
-    if(link->is_sym_link == true){
+    if (i_num_target == -1){
         return -1;
     }
+    inode_t *link = inode_get(i_num_target);
 
+    if(link->i_node_type == T_SYM_LINK){
+        return -1;
+    }
     if(link == NULL){
         return -1;
     }
-
+    printf("%s\n","checkpoint 4");
     if (add_dir_entry(root_dir_inode, link_name + 1, i_num_target) == -1) {
         return -1; // no space in directory
     }
     link->hard_link_counter++;
-
+    printf("%s\n","checkpoint 5");
     return 0;
 }
 
@@ -272,17 +273,20 @@ int tfs_unlink(char const *target) {
 
     inode_t *target_node = inode_get(i_num_target);
     if(target_node->i_node_type == T_SYM_LINK){
-        inode_delete(i_num_target);´
+        inode_delete(i_num_target);
         return 0;
     }
 
     if(target_node->hard_link_counter == 1){
+        clear_dir_entry(target_node, target + 1);
         inode_delete(i_num_target);
         return 0;
     }
     target_node->hard_link_counter--;
-    clear_dir_entry(target_node, target);
-    //falta ver nulls
+    printf("%d\n",target_node->hard_link_counter);
+    inode_delete(i_num_target);
+    //falta ver nulls~
+    return 0;//clear_dir_entry(target_node, target+1);
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {

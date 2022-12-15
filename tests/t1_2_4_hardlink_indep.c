@@ -27,10 +27,8 @@ int _link(size_t rep_target, size_t file_idx_target, size_t rep_name,
           size_t file_idx_name) {
     char target[MAX_PATH_SIZE];
     _format_path(target, MAX_PATH_SIZE, rep_target, file_idx_target);
-
     char name[MAX_PATH_SIZE];
     _format_path(name, MAX_PATH_SIZE, rep_name, file_idx_name);
-
     return tfs_link(target, name);
 }
 
@@ -84,7 +82,6 @@ void run_test(size_t rep) {
     for (size_t i = FILE_COUNT / 2; i < FILE_COUNT; i++) {
         assert(_unlink(rep, i) != -1);
     }
-
     // write in one of the links
     write_contents(rep, 0);
 
@@ -123,6 +120,7 @@ int main() {
                 assert(_link(rep, rep, rep, i) != -1);
             } else {
                 // link to the link created in the previous iteration
+                printf("%ld___%ld\n",rep,i);
                 assert(_link(rep, i - 1, rep, i) != -1);
             }
         }

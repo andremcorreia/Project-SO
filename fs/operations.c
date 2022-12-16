@@ -142,11 +142,19 @@ int tfs_sym_link(char const *target, char const *link_name) {
     }
     
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    int sym_inumber = inode_create(T_FILE);
+    int sym_inumber = inode_create(T_SYM_LINK);
     inode_t *sym_link = inode_get(sym_inumber);
     
     sym_link->i_size = sizeof(target);
-    char* ptr = data_block_get(sym_link->i_data_block);
+
+    int sym_b_num = data_block_alloc();
+            if (sym_b_num == -1) {
+                return -1; // no space
+            }
+
+            sym_link->i_data_block = sym_b_num;
+
+    char* ptr = data_block_get(sym_b_num);
     strcpy(ptr, target);
 
     if (add_dir_entry(root_dir_inode, link_name + 1, sym_inumber) == -1) {
@@ -172,12 +180,10 @@ int tfs_link(char const *target, char const *link_name) {
     if(link == NULL){
         return -1;
     }
-    printf("%s\n","checkpoint 4");
     if (add_dir_entry(root_dir_inode, link_name + 1, i_num_target) == -1) {
         return -1; // no space in directory
     }
     link->hard_link_counter++;
-    printf("%s\n","checkpoint 5");
     return 0;
 }
 
@@ -278,38 +284,33 @@ int tfs_unlink(char const *target) {
     }
 
     if(target_node->hard_link_counter == 1){
-        clear_dir_entry(target_node, target + 1);
         inode_delete(i_num_target);
-        return 0;
+        return clear_dir_entry(root_dir_inode, target+1);
     }
     target_node->hard_link_counter--;
-    printf("%d\n",target_node->hard_link_counter);
-    inode_delete(i_num_target);
-    //falta ver nulls~
-    return 0;//clear_dir_entry(target_node, target+1);
+    //falta ver nulls
+    return clear_dir_entry(root_dir_inode, target+1);
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     FILE* fd = fopen(source_path, "r");
     int fdo = tfs_open(dest_path, TFS_O_APPEND | TFS_O_TRUNC | TFS_O_CREAT);
-    if (!fd){
-        //PANIC("open error: %s\n");
+    if (!fd || fdo == -1)
         return -1;
-    }
 
-    char buffer[1000];
+    char buffer[128];
     memset(buffer,0,sizeof(buffer));
 
-
-    size_t bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd); 
-    ssize_t bytes_written = tfs_write(fdo, buffer, bytes_read);
-    if (bytes_written < 0){
-        //PANIC("write error: %s\n");
-        return -1;
-    } 
+    size_t bytes_read = 0;
+    while((bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd)))
+    {
+        ssize_t bytes_written = tfs_write(fdo, buffer, bytes_read);
+        if (bytes_written < 0)
+            return -1;
+    }
 
     fclose(fd);
     tfs_close(fdo);
-    return 1;
+    return 0;
 }

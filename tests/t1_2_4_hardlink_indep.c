@@ -120,7 +120,6 @@ int main() {
                 assert(_link(rep, rep, rep, i) != -1);
             } else {
                 // link to the link created in the previous iteration
-                printf("%ld___%ld\n",rep,i);
                 assert(_link(rep, i - 1, rep, i) != -1);
             }
         }

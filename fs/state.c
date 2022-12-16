@@ -265,12 +265,12 @@ void inode_delete(int inumber) {
     insert_delay();
     insert_delay();
 
-    //pthread_mutex_lock(&i_allocation_lock);
-
     ALWAYS_ASSERT(valid_inumber(inumber), "inode_delete: invalid inumber");
 
-    ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN, //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                  "inode_delete: inode already freed");
+    pthread_mutex_lock(&i_allocation_lock);
+
+    LOCK_ASSERT(freeinode_ts[inumber] == TAKEN,
+                  "inode_delete: inode already freed", i_allocation_lock);
 
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
@@ -278,7 +278,7 @@ void inode_delete(int inumber) {
 
     freeinode_ts[inumber] = FREE;
 
-    //pthread_mutex_unlock(&i_allocation_lock);
+    pthread_mutex_unlock(&i_allocation_lock);
 }
 
 /**
@@ -528,14 +528,21 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
     if (!valid_file_handle(fhandle)) {
         return NULL;
     }
+
     pthread_mutex_lock(&i_allocation_lock);
+    
     if (free_open_file_entries[fhandle] != TAKEN) {
+
         pthread_mutex_unlock(&i_allocation_lock);
+
         return NULL;
     }
+
     pthread_mutex_unlock(&i_allocation_lock);
     pthread_mutex_lock(&of_lock);
+
     open_file_entry_t* ofe = &open_file_table[fhandle];
+
     pthread_mutex_unlock(&of_lock);
     return ofe;
 }

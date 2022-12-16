@@ -11,6 +11,14 @@
             PANIC(MSG);                                                        \
     }
 
+#define LOCK_ASSERT(CONDEXPR, MSG, lock)                       \
+    {                                                                          \
+        pthread_mutex_unlock(&lock);                              \
+        bool should_quit = !(CONDEXPR);                                        \
+        if (should_quit)                                                       \
+            PANIC(MSG);                                                        \
+    }
+
 #define PANIC(MSG)                                                             \
     {                                                                          \
         fprintf(stderr, "Aborting. Reason: %s\n", (MSG));                      \

@@ -64,10 +64,8 @@ static bool valid_pathname(char const *name) {
  * Returns the inumber of the file, -1 if unsuccessful.
  */
 static int tfs_lookup(char const *name, inode_t const *root_inode) {
-    // TODO: assert that root_inode is the root directory
-    if (!valid_pathname(name)) {
+    if (root_inode != inode_get(ROOT_DIR_INUM)  || !valid_pathname(name))
         return -1;
-    }
     // skip the initial '/' character
     name++;
 
@@ -96,6 +94,16 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
+
+        // Truncate (if requested)
+        if (mode & TFS_O_TRUNC) {
+            if (inode->i_size > 0) {
+                data_block_free(inode->i_data_block);
+                inode->i_size = 0;
+                inode->i_node_type = T_FILE; //if a symbolic link is truncated turns into a file
+            }
+        }
+
         // The file is a symbolic link, -1 if doesnt exist
         if(inode->i_node_type == T_SYM_LINK){
 
@@ -103,13 +111,6 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
             pthread_rwlock_unlock(&root_dir_inode->rw_lock);
 
             return tfs_open(data_block_get(inode->i_data_block), mode);
-        }
-        // Truncate (if requested)
-        if (mode & TFS_O_TRUNC) {
-            if (inode->i_size > 0) {
-                data_block_free(inode->i_data_block);
-                inode->i_size = 0;
-            }
         }
 
         // Determine initial offset
@@ -379,10 +380,9 @@ int tfs_unlink(char const *target) {
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     FILE* fd = fopen(source_path, "r");
-    int fdo = tfs_open(dest_path, TFS_O_APPEND | TFS_O_TRUNC | TFS_O_CREAT);
+    int fdo = tfs_open(dest_path, TFS_O_TRUNC | TFS_O_CREAT);
     if (!fd || fdo == -1)
         return -1;
-
     char buffer[128];
     memset(buffer,0,sizeof(buffer));
 
@@ -390,8 +390,11 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     while((bytes_read = fread(buffer, sizeof(char), sizeof(buffer), fd)))
     {
         ssize_t bytes_written = tfs_write(fdo, buffer, bytes_read);
-        if (bytes_written < 0)
+        if (bytes_written < 0){
+            fclose(fd);
+            tfs_close(fdo);
             return -1;
+        }
     }
 
     fclose(fd);

@@ -20,9 +20,10 @@ int main() {
 
     assert(tfs_close(fd) != -1);
 
+    // Link file
     assert(tfs_link(file_path, link_path) != -1);
 
-    // Unlink file
+    // Unlink original
     assert(tfs_unlink(file_path) != -1);
 
     // Create new file with the same name

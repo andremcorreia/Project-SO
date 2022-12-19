@@ -15,6 +15,7 @@
 typedef struct {
     char d_name[MAX_FILE_NAME];
     int d_inumber;
+    pthread_mutex_t dir_lock;
 } dir_entry_t;
 
 typedef enum { T_FILE, T_DIRECTORY, T_SYM_LINK } inode_type;
@@ -64,4 +65,5 @@ int add_to_open_file_table(int inumber, size_t offset);
 void remove_from_open_file_table(int fhandle);
 open_file_entry_t *get_open_file_entry(int fhandle);
 
+int check_if_open(int inum);
 #endif // STATE_H

@@ -23,6 +23,7 @@ pthread_mutex_t i_allocation_lock = PTHREAD_MUTEX_INITIALIZER;
 
 // Data blocks
 static char *fs_data; // # blocks * block size
+pthread_mutex_t i_data_lock = PTHREAD_MUTEX_INITIALIZER;
 static allocation_state_t *free_blocks;
 
 /*
@@ -272,7 +273,8 @@ void inode_delete(int inumber) {
     
     LOCK_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed", &i_allocation_lock);
-    
+    pthread_mutex_lock(&i_allocation_lock);
+
     if (inode_table[inumber].i_size > 0) {
         pthread_mutex_unlock(&i_allocation_lock);
         data_block_free(inode_table[inumber].i_data_block);
@@ -320,8 +322,9 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     pthread_mutex_lock(&dir_entry->dir_lock);
-    ALWAYS_ASSERT(dir_entry != NULL,
-                  "clear_dir_entry: directory must have a data block");
+    LOCK_ASSERT(dir_entry != NULL,
+                  "clear_dir_entry: directory must have a data block",&dir_entry->dir_lock);
+    pthread_mutex_lock(&dir_entry->dir_lock);
     for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (!strcmp(dir_entry[i].d_name, sub_name)) {
             dir_entry[i].d_inumber = -1;
@@ -360,9 +363,9 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     pthread_mutex_lock(&dir_entry->dir_lock);
-    ALWAYS_ASSERT(dir_entry != NULL,
-                  "add_dir_entry: directory must have a data block");
-
+    LOCK_ASSERT(dir_entry != NULL,
+                  "add_dir_entry: directory must have a data block",&dir_entry->dir_lock);
+    pthread_mutex_lock(&dir_entry->dir_lock);
     // Finds and fills the first empty entry
     for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (dir_entry[i].d_inumber == -1) {
@@ -401,8 +404,10 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     pthread_mutex_lock(&dir_entry->dir_lock);
-    ALWAYS_ASSERT(dir_entry != NULL,
-                  "find_in_dir: directory inode must have a data block");
+    LOCK_ASSERT(dir_entry != NULL,
+                  "find_in_dir: directory inode must have a data block",&dir_entry->dir_lock);
+    pthread_mutex_lock(&dir_entry->dir_lock);
+
     // Iterates over the directory entries looking for one that has the target
     // name
     for (int i = 0; i < MAX_DIR_ENTRIES; i++)
@@ -471,10 +476,12 @@ void data_block_free(int block_number) {
 void *data_block_get(int block_number) {
     ALWAYS_ASSERT(valid_block_number(block_number),
                   "data_block_get: invalid block number");
-
     insert_delay(); // simulate storage access delay to block
-    return &fs_data[(size_t)block_number * BLOCK_SIZE];
-}
+    pthread_mutex_lock(&i_data_lock);
+    char *res = &fs_data[(size_t)block_number * BLOCK_SIZE];
+    pthread_mutex_unlock(&i_data_lock);
+    return res;
+} 
 
 /**
  * Add a new entry to the open file table.

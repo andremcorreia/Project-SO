@@ -72,13 +72,15 @@ static int tfs_lookup(char const *name, inode_t const *root_inode) {
 }
 
 int tfs_open(char const *name, tfs_file_mode_t mode) {
-    // Checks if the path name is valid
-    if (!valid_pathname(name)) 
-        return -1;
-
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
     pthread_rwlock_wrlock(&root_dir_inode->rw_lock);
+
+    // Checks if the path name is valid
+    if (!valid_pathname(name)){ 
+        pthread_rwlock_unlock(&root_dir_inode->rw_lock);
+        return -1;
+    }
 
     ALWAYS_ASSERT(root_dir_inode != NULL,
                   "tfs_open: root dir inode must exist");
@@ -105,11 +107,11 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
         // The file is a symbolic link, -1 if doesnt exist
         if(inode->i_node_type == T_SYM_LINK){
-
+            int block = inode->i_data_block;
             pthread_rwlock_unlock(&inode->rw_lock);
             pthread_rwlock_unlock(&root_dir_inode->rw_lock);
 
-            return tfs_open(data_block_get(inode->i_data_block), mode);
+            return tfs_open(data_block_get(block), mode);
         }
 
         // Determine initial offset
@@ -168,8 +170,10 @@ int tfs_sym_link(char const *target, char const *link_name) {
 
     int sym_inumber = inode_create(T_SYM_LINK);
 
-    if (sym_inumber == -1)
+    if (sym_inumber == -1){
+        pthread_rwlock_unlock(&root_dir_inode->rw_lock);
         return -1; // failed to create
+    }
 
     inode_t *sym_link = inode_get(sym_inumber);
     
@@ -275,9 +279,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
             if (bnum == -1) {
-
                 pthread_rwlock_unlock(&inode->rw_lock);
-
                 return -1; // no space
             }
 

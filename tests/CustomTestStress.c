@@ -14,8 +14,10 @@ char *path_src = "tests/CustomBig.txt";
 
 char const target_path1[] = "/f1";
 char const target_path2[] = "/f2";
-
-uint8_t const file_contents[] = "This is a string to write";
+char const link_path1[] = "/l1";
+char const link_path2[] = "/l2";
+char const link_path3[] = "/l3";
+char const link_path4[] = "/l4";
 
 char buffer[1200];
 int f;
@@ -28,28 +30,18 @@ void *testing(){
     g = tfs_open(target_path1, 0);
     assert(g != -1);
 
-    tfs_write(g,file_contents,sizeof(file_contents));
+    assert(tfs_sym_link(target_path1, link_path1) != -1);
+    assert(tfs_link(target_path1, link_path2) != -1);
 
-    tfs_read(g,buffer,sizeof(buffer));
+    int h = tfs_open(link_path1, 0);
+    assert(h != -1);
+    int j = tfs_open(link_path2, 0);
+    assert(j != -1);
 
-    assert(tfs_close(g) != -1);
-
-    return NULL;
-}
-
-void *testing2(){
-    int g = tfs_copy_from_external_fs(path_src, target_path2);
-    assert(g != -1);
-
-    g = tfs_open(target_path2, 0);
-    assert(g != -1);
-
-    tfs_read(g,buffer,sizeof(buffer));
-
-    tfs_write(g,file_contents,sizeof(file_contents));
-
-    tfs_read(g,buffer,sizeof(buffer));
-
+    assert(tfs_close(h) != -1);
+    assert(tfs_close(j) != -1);
+    assert(tfs_unlink(link_path1) != -1);
+    assert(tfs_unlink(link_path2) != -1);
     assert(tfs_close(g) != -1);
 
     return NULL;
@@ -74,22 +66,13 @@ int main() {
             printf("Failed while testing the threads\n");
             return -1;
         }
-        if (pthread_create(&tid[i+2], NULL, testing, (void*) NULL) != 0) {
-            printf("Failed while testing the threads\n");
-            return -1;
-        }
-        if (pthread_create(&tid[i+1], NULL, testing2, (void*) NULL) != 0) {
-            printf("Failed while testing the threads\n");
-            return -1;
-        }
-    }
-    for (int i = 0; i < 1000; i+=3){
-        pthread_join(tid[i], NULL);
-        pthread_join(tid[i+1], NULL);
-        pthread_join(tid[i+2], NULL);
     }
 
-    printf("Successfully tested the threads\n");
+    for (int i = 0; i < 1000; i+=3)
+    {
+        pthread_join(tid[i], NULL);
+    }
+    printf("Successfully stress tested the threads\n");
     return 0;
 }
 

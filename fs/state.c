@@ -359,6 +359,7 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
     }
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
+    pthread_mutex_lock(&dir_entry->dir_lock);
     ALWAYS_ASSERT(dir_entry != NULL,
                   "add_dir_entry: directory must have a data block");
 
@@ -368,11 +369,11 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
             dir_entry[i].d_inumber = sub_inumber;
             strncpy(dir_entry[i].d_name, sub_name, MAX_FILE_NAME - 1);
             dir_entry[i].d_name[MAX_FILE_NAME - 1] = '\0';
-
+            pthread_mutex_unlock(&dir_entry->dir_lock);
             return 0;
         }
     }
-
+    pthread_mutex_unlock(&dir_entry->dir_lock);
     return -1; // no space for entry
 }
 
@@ -399,7 +400,7 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
     }
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
-    
+    pthread_mutex_lock(&dir_entry->dir_lock);
     ALWAYS_ASSERT(dir_entry != NULL,
                   "find_in_dir: directory inode must have a data block");
     // Iterates over the directory entries looking for one that has the target
@@ -410,10 +411,11 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
 
             int sub_inumber = dir_entry[i].d_inumber;
+            pthread_mutex_unlock(&dir_entry->dir_lock);
             return sub_inumber;
         }
         
-
+    pthread_mutex_unlock(&dir_entry->dir_lock);
     return -1; // entry not found
 }
 

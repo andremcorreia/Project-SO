@@ -83,7 +83,7 @@ int main() {
     int f4;
     ssize_t r4;
 
-    // Tests a path name over limit
+    // Tests the truncation of an existing file for it to be copied
     f4 = tfs_copy_from_external_fs(path_src, path_copied_file);
     assert(f4 != -1);
 

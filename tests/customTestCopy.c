@@ -5,9 +5,9 @@
 
 int main() {
     char *str_ext_file =
-        "BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL Big";
+        "test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test Big";
     char *str_ext_too_big_file =
-        "BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL BigL Big BigL BigL BigL BigL BigL BigL BigL";
+        "test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test";
     char * str_ovewrite_tests = "hello, this is a test file, f1 is not among us.";
 
     char *path_copied_file = "/f1";
@@ -40,7 +40,7 @@ int main() {
     assert(r == strlen(str_ext_file));
     assert(!memcmp(buffer, str_ext_file, strlen(str_ext_file)));
 
-    printf("Successfully tested: |path name over limit|.\n");
+    printf("Successfully tested: |Path name over limit|.\n");
 
     int f2;
     ssize_t r2;
@@ -56,7 +56,7 @@ int main() {
     assert(r2 == strlen(str_ext_too_big_file) - 11); //tests if it stopped copying at the limit
     assert(memcmp(buffer, str_ext_too_big_file, strlen(str_ext_too_big_file)));
 
-    printf("Successfully tested: |file over size limit|.\n");
+    printf("Successfully tested: |File over size limit|.\n");
 
     int f3;
     ssize_t r3;
@@ -78,7 +78,7 @@ int main() {
     r3 = tfs_read(f3, buffer, sizeof(buffer) - 1);
     assert(r != r3); // checks if its replacing the sym link with a normal file
 
-    printf("Successfully tested: |copied into a symbolic link|.\n");
+    printf("Successfully tested: |Copied into a symbolic link|.\n");
 
     int f4;
     ssize_t r4;

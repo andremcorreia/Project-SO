@@ -11,12 +11,13 @@
             PANIC(MSG);                                                        \
     }
 
-#define LOCK_ASSERT(CONDEXPR, MSG, lock)                       \
-    {                                                                          \
-        pthread_mutex_unlock(lock);                                            \
+#define LOCK_ASSERT(CONDEXPR, MSG, lock)                                       \
+    {                                                                                                                     \
         bool should_quit = !(CONDEXPR);                                        \
-        if (should_quit)                                                       \
+        if (should_quit) {                                                     \
+            pthread_mutex_unlock(lock);                                        \
             PANIC(MSG);                                                        \
+        }                                                                      \
     }
 
 #define PANIC(MSG)                                                             \

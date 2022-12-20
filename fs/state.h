@@ -25,13 +25,10 @@ typedef enum { T_FILE, T_DIRECTORY, T_SYM_LINK } inode_type;
  */
 typedef struct {
     inode_type i_node_type;
-
     size_t i_size;
     int i_data_block;
     int hard_link_counter;
-    
     pthread_rwlock_t rw_lock;
-    // in a more complete FS, more fields could exist here
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;

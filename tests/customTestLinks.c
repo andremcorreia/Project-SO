@@ -49,13 +49,15 @@ int main() {
     // init TécnicoFS
     assert(tfs_init(NULL) != -1);
 
-    assert(tfs_sym_link(target_path1, link_path1) != -1);
-    assert(tfs_open(link_path1, TFS_O_APPEND) == -1);
-    assert(tfs_unlink(link_path1) != -1);
-    printf("Successfully tested: |symbolically linked to an unexisting file|.\n");
+    assert(tfs_sym_link(target_path1, link_path1) == -1);
+    assert(tfs_sym_link(link_path1, link_path1) == -1);
+    printf("Successfully tested: |Symbolically linked to an unexisting file|.\n");
+    printf("Successfully tested: |Didnt link to itself (Symbolic)|.\n");
 
     assert(tfs_link(target_path1, link_path1) == -1);
-    printf("Successfully tested: |linked to an unexisting file|.\n");
+    assert(tfs_link(link_path1, link_path1) == -1);
+    printf("Successfully tested: |Linked to an unexisting file|.\n");
+    printf("Successfully tested: |Didnt link to itself (Hard)|.\n");
 
     // Create a file
     int f = tfs_open(target_path1, TFS_O_CREAT);
@@ -73,6 +75,12 @@ int main() {
     assert(tfs_sym_link(link_path4, link_path5) != -1);
     
     assert_contents_ok(link_path5);
-    printf("Successfully tested: |symbolic link chain|.\n");
+    printf("Successfully tested: |Symbolic link chain|.\n");
+
+    assert(tfs_sym_link(target_path1, link_path1) == -1);
+    printf("Successfully tested: |Name already used (Symbolic)|.\n");
+
+    assert(tfs_link(target_path1, link_path1) == -1);
+    printf("Successfully tested: |Name already used (Hard)|.\n");
     return 0;
 }

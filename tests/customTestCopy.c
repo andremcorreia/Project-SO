@@ -27,7 +27,7 @@ int main() {
     int f;
     ssize_t r;
 
-    // Tests a path name over limit
+    // Tests the copy of a path name over limit.
     assert(tfs_copy_from_external_fs(path_src, path_but_too_big) == -1);
 
     f = tfs_copy_from_external_fs(path_src, path_copied_file);
@@ -45,7 +45,7 @@ int main() {
     int f2;
     ssize_t r2;
 
-    // Tests a file over size limit
+    // Tests the copy of a file over size limit.
     f2 = tfs_copy_from_external_fs(path_error_src, path_copied_too_big_file);
     assert(f2 != -1);
 
@@ -61,6 +61,7 @@ int main() {
     int f3;
     ssize_t r3;
 
+    // Tests the copy of a file into a symbolic link transforming it into a file.
     assert(tfs_sym_link(path_copied_file, link_path1) != -1); //create a sym link
     f3 = tfs_open(link_path1, 0);
     assert(f3 != -1);
@@ -83,7 +84,7 @@ int main() {
     int f4;
     ssize_t r4;
 
-    // Tests the truncation of an existing file for it to be copied
+    // Tests the truncation of an existing file for it to be copied.
     f4 = tfs_copy_from_external_fs(path_src, path_copied_file);
     assert(f4 != -1);
 

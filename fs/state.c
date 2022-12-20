@@ -19,11 +19,11 @@ static tfs_params fs_params;
 // Inode table
 static inode_t *inode_table;
 static allocation_state_t *freeinode_ts;
-pthread_mutex_t i_allocation_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t i_allocation_lock = PTHREAD_MUTEX_INITIALIZER; // Lock for allocation_state tables
 
 // Data blocks
 static char *fs_data; // # blocks * block size
-pthread_mutex_t i_data_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t i_data_lock = PTHREAD_MUTEX_INITIALIZER; // Lock for data blocks
 static allocation_state_t *free_blocks;
 
 /*
@@ -31,7 +31,7 @@ static allocation_state_t *free_blocks;
  */
 static open_file_entry_t *open_file_table;
 static allocation_state_t *free_open_file_entries;
-pthread_mutex_t of_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t of_lock = PTHREAD_MUTEX_INITIALIZER; // A REVER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 // Convenience macros
@@ -169,9 +169,8 @@ static int inode_alloc(void) {
     for (size_t inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
 
         pthread_mutex_lock(&i_allocation_lock);
-        if ((inumber * sizeof(allocation_state_t) % BLOCK_SIZE) == 0) {
+        if ((inumber * sizeof(allocation_state_t) % BLOCK_SIZE) == 0)
             insert_delay(); // simulate storage access delay (to freeinode_ts)
-        }
 
         // Finds first free entry in inode table
         if (freeinode_ts[inumber] == FREE) {
@@ -234,9 +233,8 @@ int inode_create(inode_type i_type) {
             ALWAYS_ASSERT(dir_entry != NULL,
                         "inode_create: data block freed while in use");
 
-            for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
+            for (size_t i = 0; i < MAX_DIR_ENTRIES; i++)
                 dir_entry[i].d_inumber = -1;
-            }
         } break;
 
         case T_SYM_LINK:
@@ -317,6 +315,7 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     pthread_mutex_lock(&dir_entry->dir_lock);
+
     //Performs ALWAYS_ASSERT and unlocks the dir_lock
     LOCK_ASSERT(dir_entry != NULL,
                   "clear_dir_entry: directory must have a data block",&dir_entry->dir_lock);
@@ -451,6 +450,7 @@ void data_block_free(int block_number) {
                   "data_block_free: invalid block number");
 
     insert_delay(); // simulate storage access delay to free_blocks
+
     pthread_mutex_lock(&i_allocation_lock);
     free_blocks[block_number] = FREE;
     pthread_mutex_unlock(&i_allocation_lock);
@@ -469,6 +469,7 @@ void *data_block_get(int block_number) {
                   "data_block_get: invalid block number");
 
     insert_delay(); // simulate storage access delay to block
+
     pthread_mutex_lock(&i_data_lock);
     char *res = &fs_data[(size_t)block_number * BLOCK_SIZE];
     pthread_mutex_unlock(&i_data_lock);
@@ -487,7 +488,7 @@ void *data_block_get(int block_number) {
  * Possible errors:
  *   - No space in open file table for a new open file.
  */
-int add_to_open_file_table(int inumber, size_t offset) {
+int add_to_open_file_table(int inumber, size_t offset) { // TEM DE SER VISTO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
         pthread_mutex_lock(&i_allocation_lock);
         pthread_mutex_lock(&of_lock);
@@ -533,7 +534,7 @@ void remove_from_open_file_table(int fhandle) {
  * Returns pointer to the entry, or NULL if the fhandle is invalid/closed/never
  * opened.
  */
-open_file_entry_t *get_open_file_entry(int fhandle) {
+open_file_entry_t *get_open_file_entry(int fhandle) { // TEM DE SER VISTO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (!valid_file_handle(fhandle)) 
         return NULL;
 
@@ -563,9 +564,17 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
 */
 int check_if_open(int inum){
     for(int i = 0; i < MAX_OPEN_FILES; i++){
-        if(free_open_file_entries[i] == TAKEN && open_file_table[i].of_inumber == inum){
+        if(free_open_file_entries[i] == TAKEN && open_file_table[i].of_inumber == inum)
             return 0;
-        }
     }
     return -1;
 }
+
+void lock_open_files(open_file_entry_t file){
+    pthread_mutex_unlock(&file->of_lock);
+}
+
+void unlock_open_files(open_file_entry_t file){
+    pthread_mutex_unlock(&file->of_lock);
+}
+

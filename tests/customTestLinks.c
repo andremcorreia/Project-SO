@@ -52,12 +52,12 @@ int main() {
     assert(tfs_sym_link(target_path1, link_path1) == -1);
     assert(tfs_sym_link(link_path1, link_path1) == -1);
     printf("Successfully tested: |Symbolically linked to an unexisting file|.\n");
-    printf("Successfully tested: |Didnt link to itself (Symbolic)|.\n");
+    printf("Successfully tested: |Link to itself (Symbolic)|.\n");
 
     assert(tfs_link(target_path1, link_path1) == -1);
     assert(tfs_link(link_path1, link_path1) == -1);
     printf("Successfully tested: |Linked to an unexisting file|.\n");
-    printf("Successfully tested: |Didnt link to itself (Hard)|.\n");
+    printf("Successfully tested: |Link to itself (Hard)|.\n");
 
     // Create a file
     int f = tfs_open(target_path1, TFS_O_CREAT);

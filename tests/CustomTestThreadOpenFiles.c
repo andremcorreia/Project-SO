@@ -6,7 +6,9 @@
 #include <string.h>
 
 #include <pthread.h>
-
+// ESTE TESTE VAI SER SOBRE OPEN FILES VAI TER UM FILE I QUE COMEÇA OPEN
+// DEPOIS ESCREVE NUMA THREAD 
+// ENQUANTO NOUTRA THREAD DA CLOSE(I), OPEN(I) E ESCREVE
  char *str_ext_file =
         "test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test Big";
 

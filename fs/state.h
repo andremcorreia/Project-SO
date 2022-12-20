@@ -15,7 +15,7 @@
 typedef struct {
     char d_name[MAX_FILE_NAME];
     int d_inumber;
-    pthread_mutex_t dir_lock;
+    pthread_mutex_t dir_lock; // lock for dir_entry tables
 } dir_entry_t;
 
 typedef enum { T_FILE, T_DIRECTORY, T_SYM_LINK } inode_type;
@@ -28,7 +28,7 @@ typedef struct {
     size_t i_size;
     int i_data_block;
     int hard_link_counter;
-    pthread_rwlock_t rw_lock;
+    pthread_rwlock_t rw_lock; // inode rw_lock 
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
@@ -39,6 +39,7 @@ typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
 typedef struct {
     int of_inumber;
     size_t of_offset;
+    // pthread_mutex_t of_lock; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 } open_file_entry_t;
 
 int state_init(tfs_params);

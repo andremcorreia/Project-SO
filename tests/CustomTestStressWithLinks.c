@@ -7,7 +7,7 @@
 
 #include <pthread.h>
 
- char *str_ext_file =
+char *str_ext_file =
         "test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test test test test test test test test test Big test test test test test Big";
 
 char *path_src = "tests/CustomBig.txt";
@@ -18,6 +18,10 @@ char const link_path1[] = "/l";
 char buffer[1200];
 int f;
 
+/* Test the creation of 1000 simultaneous threads and do:
+*
+* copy from external; open and close files; creation of links and symlinks; unlink of links.
+*/
 void *testing(void* arg){
     long unsigned link_num = (uintptr_t)arg;
 

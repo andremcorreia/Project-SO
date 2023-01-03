@@ -1,3 +1,4 @@
+//numeros alunos: 102666 | 103590
 #include "state.h"
 #include "betterassert.h"
 
@@ -31,7 +32,7 @@ static allocation_state_t *free_blocks;
  */
 static open_file_entry_t *open_file_table;
 static allocation_state_t *free_open_file_entries;
-pthread_mutex_t of_lock = PTHREAD_MUTEX_INITIALIZER; // A REVER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//pthread_mutex_t of_lock = PTHREAD_MUTEX_INITIALIZER; 
 
 
 // Convenience macros
@@ -488,20 +489,20 @@ void *data_block_get(int block_number) {
  * Possible errors:
  *   - No space in open file table for a new open file.
  */
-int add_to_open_file_table(int inumber, size_t offset) { // TEM DE SER VISTO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+int add_to_open_file_table(int inumber, size_t offset) { 
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
         pthread_mutex_lock(&i_allocation_lock);
-        pthread_mutex_lock(&of_lock);
 
         if (free_open_file_entries[i] == FREE) {
             free_open_file_entries[i] = TAKEN;
+
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
-            pthread_mutex_unlock(&of_lock);
+            pthread_mutex_init(&open_file_table[i].of_lock,NULL);
+
             pthread_mutex_unlock(&i_allocation_lock);
             return i;
         }
-        pthread_mutex_unlock(&of_lock);
         pthread_mutex_unlock(&i_allocation_lock);
     }
     return -1;
@@ -516,11 +517,10 @@ int add_to_open_file_table(int inumber, size_t offset) { // TEM DE SER VISTO !!!
 void remove_from_open_file_table(int fhandle) {
     ALWAYS_ASSERT(valid_file_handle(fhandle),
                   "remove_from_open_file_table: file handle must be valid");
-
-    ALWAYS_ASSERT(free_open_file_entries[fhandle] == TAKEN,
-                  "remove_from_open_file_table: file handle must be taken");
-
     pthread_mutex_lock(&i_allocation_lock);
+    LOCK_ASSERT(free_open_file_entries[fhandle] == TAKEN,
+                  "remove_from_open_file_table: file handle must be taken", &i_allocation_lock);
+    pthread_mutex_destroy(&open_file_table[fhandle].of_lock);
     free_open_file_entries[fhandle] = FREE;
     pthread_mutex_unlock(&i_allocation_lock);
 }
@@ -534,7 +534,7 @@ void remove_from_open_file_table(int fhandle) {
  * Returns pointer to the entry, or NULL if the fhandle is invalid/closed/never
  * opened.
  */
-open_file_entry_t *get_open_file_entry(int fhandle) { // TEM DE SER VISTO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+open_file_entry_t *get_open_file_entry(int fhandle) { 
     if (!valid_file_handle(fhandle)) 
         return NULL;
 
@@ -546,12 +546,8 @@ open_file_entry_t *get_open_file_entry(int fhandle) { // TEM DE SER VISTO !!!!!!
     }
 
     pthread_mutex_unlock(&i_allocation_lock);
-    pthread_mutex_lock(&of_lock);
-
-    open_file_entry_t* ofe = &open_file_table[fhandle];
-
-    pthread_mutex_unlock(&of_lock);
-    return ofe;
+    
+    return &open_file_table[fhandle];
 }
 
 /*
@@ -563,18 +559,18 @@ open_file_entry_t *get_open_file_entry(int fhandle) { // TEM DE SER VISTO !!!!!!
 * Returns 0 if successful, -1 if failed.
 */
 int check_if_open(int inum){
-    for(int i = 0; i < MAX_OPEN_FILES; i++){
-        if(free_open_file_entries[i] == TAKEN && open_file_table[i].of_inumber == inum)
-            return 0;
+    for(int i = 0; i < MAX_OPEN_FILES; i++){ 
+        pthread_mutex_lock(&i_allocation_lock);
+        if(free_open_file_entries[i] == TAKEN ){
+            pthread_mutex_lock(&open_file_table[i].of_lock);
+            if(open_file_table[i].of_inumber == inum){
+                pthread_mutex_unlock(&open_file_table[i].of_lock);
+                pthread_mutex_unlock(&i_allocation_lock);
+                return 0;
+            }
+            pthread_mutex_unlock(&open_file_table[i].of_lock);
+        }
+        pthread_mutex_unlock(&i_allocation_lock);
     }
     return -1;
 }
-
-void lock_open_files(open_file_entry_t file){
-    pthread_mutex_unlock(&file->of_lock);
-}
-
-void unlock_open_files(open_file_entry_t file){
-    pthread_mutex_unlock(&file->of_lock);
-}
-

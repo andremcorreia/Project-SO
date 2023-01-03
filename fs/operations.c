@@ -1,3 +1,4 @@
+//numeros alunos: 102666 | 103590
 #include "operations.h"
 #include "config.h"
 #include "state.h"
@@ -82,8 +83,8 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 		return -1;
 	}
 
-	ALWAYS_ASSERT(root_dir_inode != NULL,
-				  "tfs_open: root dir inode must exist");
+	LOCK_ASSERT_RW(root_dir_inode != NULL,
+				  "tfs_open: root dir inode must exist",&root_dir_inode->rw_lock);
 	int inum = tfs_lookup(name, root_dir_inode);
 	size_t offset;
 
@@ -93,8 +94,8 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
 		pthread_rwlock_wrlock(&inode->rw_lock);
 
-		ALWAYS_ASSERT(inode != NULL,
-					  "tfs_open: directory files must have an inode");
+		LOCK_ASSERT_RW_RW(inode != NULL,
+					  "tfs_open: directory files must have an inode",&inode->rw_lock,&root_dir_inode->rw_lock);
 
 		// Truncate (if requested)
 		if (mode & TFS_O_TRUNC) {
@@ -165,10 +166,9 @@ int tfs_sym_link(char const *target, char const *link_name) {
 		return -1; // invalid link name
 	
 	inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-
-	ALWAYS_ASSERT(root_dir_inode != NULL, "tfs_sym_link: inode of root null\n");
-
 	pthread_rwlock_wrlock(&root_dir_inode->rw_lock);
+
+	LOCK_ASSERT_RW(root_dir_inode != NULL, "tfs_sym_link: inode of root null\n",&root_dir_inode->rw_lock);
 
 	if (tfs_lookup(link_name,root_dir_inode) != -1 || tfs_lookup(target,root_dir_inode) == -1){
 		printf("Invalid name.\n");
@@ -184,10 +184,9 @@ int tfs_sym_link(char const *target, char const *link_name) {
 	}
 
 	inode_t *sym_link = inode_get(sym_inumber);
-
-	ALWAYS_ASSERT(sym_link != NULL, "tfs_sym_link: inode of sym link null");
-	
 	pthread_rwlock_wrlock(&sym_link->rw_lock);
+
+	LOCK_ASSERT_RW_RW(sym_link != NULL, "tfs_sym_link: inode of sym link null",&sym_link->rw_lock,&root_dir_inode->rw_lock);
 
 	sym_link->i_size = sizeof(target);
 
@@ -217,10 +216,11 @@ int tfs_sym_link(char const *target, char const *link_name) {
 int tfs_link(char const *target, char const *link_name) {
 	
 	inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-
-	ALWAYS_ASSERT(root_dir_inode != NULL, "tfs_link: inode of root null\n");
-
 	pthread_rwlock_rdlock(&root_dir_inode->rw_lock);
+
+	LOCK_ASSERT_RW(root_dir_inode != NULL, "tfs_link: inode of root null\n",&root_dir_inode->rw_lock);
+
+	
 
 	if (tfs_lookup(link_name,root_dir_inode) != -1 || tfs_lookup(target,root_dir_inode) == -1){
 		printf("Invalid name.\n");
@@ -237,9 +237,9 @@ int tfs_link(char const *target, char const *link_name) {
 
 	inode_t *link = inode_get(i_num_target);
 
-	ALWAYS_ASSERT(link != NULL, "tfs_link: inode of link null\n");
-
 	pthread_rwlock_wrlock(&link->rw_lock);
+
+	LOCK_ASSERT_RW_RW(link != NULL, "tfs_link: inode of link null\n",&link->rw_lock,&root_dir_inode->rw_lock);
 
 	if(link->i_node_type == T_SYM_LINK || link == NULL){
 
@@ -266,26 +266,28 @@ int tfs_link(char const *target, char const *link_name) {
 
 int tfs_close(int fhandle) {
 	open_file_entry_t *file = get_open_file_entry(fhandle);
-	if (file == NULL) 
+    pthread_mutex_lock(&file->of_lock);
+	if (file == NULL){
+        pthread_mutex_unlock(&file->of_lock); 
 		return -1; // invalid fd
-
+    }
 	remove_from_open_file_table(fhandle);
-	
 	return 0;
 }
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 	open_file_entry_t *file = get_open_file_entry(fhandle);
-	// DEVIA ESTAR AQUI LOCK DOS OPEN FILES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	if (file == NULL) 
+	pthread_mutex_lock(&file->of_lock); 
+	if (file == NULL) {
+		pthread_mutex_unlock(&file->of_lock); 
 		return -1;
-
+	}
+	
 	//  From the open file table entry, we get the inode
 	inode_t *inode = inode_get(file->of_inumber);
-
-	ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted\n");
-
 	pthread_rwlock_wrlock(&inode->rw_lock);
+
+	LOCK_ASSERT_RW_MUTEX(inode != NULL, "tfs_write: inode of open file deleted\n",&inode->rw_lock,&file->of_lock);
 
 	// Determine how many bytes to write
 	size_t block_size = state_block_size();
@@ -298,6 +300,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 			int bnum = data_block_alloc();
 			if (bnum == -1) {
 				pthread_rwlock_unlock(&inode->rw_lock);
+				pthread_mutex_unlock(&file->of_lock);
 				return -1; // no space
 			}
 
@@ -305,7 +308,8 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 		}
 
 		void *block = data_block_get(inode->i_data_block);
-		ALWAYS_ASSERT(block != NULL, "tfs_write: data block deleted mid-write\n");
+		
+		LOCK_ASSERT_RW_MUTEX(block != NULL, "tfs_write: data block deleted mid-write\n",&inode->rw_lock,&file->of_lock);
 
 		// Perform the actual write
 		memcpy(block + file->of_offset, buffer, to_write);
@@ -314,23 +318,26 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 		file->of_offset += to_write;
 		if (file->of_offset > inode->i_size) 
 			inode->i_size = file->of_offset;
-	}
+	}   
 
-	pthread_rwlock_unlock(&inode->rw_lock); // DEVIA TAR AQUI UNLOCK DOS OPEN FILES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	return (ssize_t)to_write;
+	pthread_rwlock_unlock(&inode->rw_lock);
+	pthread_mutex_unlock(&file->of_lock); 
+    return (ssize_t)to_write;
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 	open_file_entry_t *file = get_open_file_entry(fhandle);
-	if (file == NULL) 
+	pthread_mutex_lock(&file->of_lock); 
+	if (file == NULL) {
+		pthread_mutex_unlock(&file->of_lock); 
 		return -1;
+	}
 
 	// From the open file table entry, we get the inode
 	inode_t *inode = inode_get(file->of_inumber);
-
-	ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted\n");
-
 	pthread_rwlock_rdlock(&inode->rw_lock);
+
+	LOCK_ASSERT_RW_MUTEX(inode != NULL, "tfs_read: inode of open file deleted\n",&inode->rw_lock,&file->of_lock);
 
 	// Determine how many bytes to read
 	size_t to_read = inode->i_size - file->of_offset;
@@ -339,24 +346,25 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 
 	if (to_read > 0) {
 		void *block = data_block_get(inode->i_data_block);
-		ALWAYS_ASSERT(block != NULL, "tfs_read: data block deleted mid-read\n");
+		
+		LOCK_ASSERT_RW_MUTEX(block != NULL, "tfs_read: data block deleted mid-read\n",&inode->rw_lock,&file->of_lock);
 
 		// Perform the actual read
 		memcpy(buffer, block + file->of_offset, to_read);
 		// The offset associated with the file handle is incremented accordingly
 		file->of_offset += to_read;
 	}
-
 	pthread_rwlock_unlock(&inode->rw_lock);
+    pthread_mutex_unlock(&file->of_lock); 
 	return (ssize_t)to_read;
 }
 
 int tfs_unlink(char const *target) {
 	inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
-	ALWAYS_ASSERT(root_dir_inode != NULL, "tfs_unlink: inode of root null\n");
-
 	pthread_rwlock_wrlock(&root_dir_inode->rw_lock);
+	
+	LOCK_ASSERT_RW(root_dir_inode != NULL, "tfs_unlink: inode of root null\n",&root_dir_inode->rw_lock);
 	
 	int i_num_target = tfs_lookup(target, root_dir_inode);
 	
@@ -367,9 +375,9 @@ int tfs_unlink(char const *target) {
 
 	inode_t *target_node = inode_get(i_num_target);
 
-	ALWAYS_ASSERT(target_node != NULL, "tfs_unlink: inode of target null\n");
-
 	pthread_rwlock_wrlock(&target_node->rw_lock);
+
+	LOCK_ASSERT_RW_RW(target_node != NULL, "tfs_unlink: inode of target null\n",&target_node->rw_lock,&root_dir_inode->rw_lock);
 
 	// Unlink a Symbolic link
 	if(target_node->i_node_type == T_SYM_LINK){
@@ -378,8 +386,11 @@ int tfs_unlink(char const *target) {
 	else{  // Unlink a file
 		target_node->hard_link_counter--;   //Remove the last hard link from the file in order to delete it
 		if(target_node->hard_link_counter == 0){
-			if(check_if_open(i_num_target) == 0)
-				return -1;		// file is open so it cannot be unlinked
+			if(check_if_open(i_num_target) == 0){
+				pthread_rwlock_unlock(&target_node->rw_lock);
+				pthread_rwlock_unlock(&root_dir_inode->rw_lock);
+				return -1;
+			}		// file is open so it cannot be unlinked
 			inode_delete(i_num_target);
 		}
 	}    

@@ -26,12 +26,14 @@ void *testingRead(){
     g = tfs_open(target_path1, 0);
     assert(g != -1);
     char buffer[2];
+    int count = 0;
     while (1) {
-        assert(tfs_read(g,buffer,sizeof(buffer)) % 2 != 0) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-                                                // VER ISTO MELHOR TEM DE CONSEGUIR LER SEMPRE UM NUMERO DIVISIVEL POR 2
+        assert(tfs_read(g,buffer,sizeof(buffer)) % 2 != 0);
+        
         if(!end)
-            break; // quando acaba de escrever tudo acaba de ler
+            break;
     }
+    printf("%d\n",count);
 
     assert(tfs_close(g) != -1);
 
@@ -46,9 +48,9 @@ void *testingWrite(){
     assert(g != -1);
     for (int i = 0; i < 100; i++)
     {
-        tfs_write(g,file_contents,sizeof(file_contents)); // escreve tudo 
+        tfs_write(g,file_contents,sizeof(file_contents));  
     }
-    end = false;    // acabou de escrever
+    end = false;    // done writing
     assert(tfs_close(g) != -1);
 
     return NULL;
@@ -62,15 +64,15 @@ int main() {
     f = tfs_open(target_path1, TFS_O_CREAT);
     assert(f != -1);
     assert(tfs_close(f) != -1);
-     if (pthread_create(&tid[0], NULL, testingRead, (void*) NULL) != 0) {
-        printf("Failed while testing the threads\n");
-        return -1;
-    }
-    if (pthread_create(&tid[2], NULL, testingWrite, (void*) NULL) != 0) {
+    if (pthread_create(&tid[0], NULL, testingWrite, (void*) NULL) != 0) {
         printf("Failed while testing the threads\n");
         return -1;
     }
     if (pthread_create(&tid[1], NULL, testingRead, (void*) NULL) != 0) {
+        printf("Failed while testing the threads\n");
+        return -1;
+    }
+    if (pthread_create(&tid[2], NULL, testingRead, (void*) NULL) != 0) {
         printf("Failed while testing the threads\n");
         return -1;
     }

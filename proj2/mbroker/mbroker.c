@@ -107,17 +107,22 @@ void removeSub(struct subscriptions* list, char* pipe_to_sub) {
 }
 
 struct linkedList boxes;
+
+int Max_sessions;
     
+int prodptr=0, consptr=0, count=0;
+pthread_mutex_t mutex;
+pthread_cond_t podeProd, podeCons; 
 
-
-//void thread(char* clientPipe,char* boxName){
-//    // inicializer
-//    while(1) {
-//        // consumir
-//        // codigo trata publisher/sub/manager
-//        // if/else para ver se e' publisher/sub...
-//    }
-//}
+void thread(char* clientPipe,char* boxName){
+    int buf[Max_sessions]
+    // inicializer
+    while(1) {
+        // consumir
+        // codigo trata publisher/sub/manager
+        // if/else para ver se e' publisher/sub...
+    }
+}
 
 void publisher(char* clientPipe,char* boxName){
     int f = tfs_open(boxName,TFS_O_APPEND);
@@ -158,6 +163,7 @@ int main(int argc, char **argv) {
     if (argc != 3){
         fprintf(stderr, "usage: mbroker <pipename> <max_sesions>\n");
     }
+    Max_sessions = argv[2];
 
     boxes.head = NULL;
     boxes.tail = NULL;

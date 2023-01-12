@@ -13,6 +13,14 @@
 
 //void signal_handler(int signum) {
 //}
+bool active = true;
+
+static void sig_handler(int signum){
+    if(signum == SIGINT){
+        printf("catched\n");
+        active = false;
+    }
+}
 
 int main(int argc, char **argv) {
     (void)argc;
@@ -30,26 +38,35 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if(signal(SIGINT, sig_handler) == SIG_ERR){
+        printf("error sig\n");
+        exit(EXIT_FAILURE);
+    }
+
+
     int mbroker_pipe = open(argv[2], O_WRONLY);
     size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
     char register_buffer[size];
-    sprintf(register_buffer, "code = %d|%s|%s", 1, argv[1], argv[3]);
+    char client_pipe[256];
+    char box_name[32];
+    strcpy(client_pipe,argv[1]);
+    strcpy(box_name,argv[3]);
+    sprintf(register_buffer, "%hhd%s%s", (uint8_t)1, client_pipe, box_name);
     ssize_t wb = write(mbroker_pipe, register_buffer, size);
     if(wb == 100000000000000000){
         return -1;
     }
-    kill(mbroker_pipe, SIGUSR1);
     close(mbroker_pipe);
 
     
     int pipe_self = open(argv[1], O_WRONLY);
-    while (true)
+    while (active)
     {   
         char message[1024];
-        if (scanf("%s\n", message))
+        if (fgets(message, sizeof(message), stdin) != NULL)
         {
-            printf("1 %s\n",message);
-            ssize_t w = write(pipe_self, message, sizeof(message));
+            message[strcspn(message, "\n")] = 0;
+            ssize_t w = write(pipe_self, message, sizeof(message)-1);
             if(w == 100000000000000000){
                 return -1;
             }

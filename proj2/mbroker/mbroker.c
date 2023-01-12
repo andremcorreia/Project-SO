@@ -16,15 +16,14 @@
 
 #include <pthread.h>
 
-void thread(char* clientPipe,char* boxName){
-    // inicializer
-    while(1) {
-        // consumir
-        // codigo trata publisher/sub/manager
-        // if/else para ver se e' publisher/sub...
-    }
-}
-
+//void thread(char* clientPipe,char* boxName){
+//    // inicializer
+//    while(1) {
+//        // consumir
+//        // codigo trata publisher/sub/manager
+//        // if/else para ver se e' publisher/sub...
+//    }
+//}
 
 void publisher(char* clientPipe,char* boxName){
     int f = tfs_open(boxName,TFS_O_APPEND);
@@ -33,19 +32,26 @@ void publisher(char* clientPipe,char* boxName){
         return;
     }
     char msg[1024];
+
     int receivingPipe = open(clientPipe, O_RDONLY);
-    while (true)
+
+    bool active = true;
+
+    while (active)
     {    
         ssize_t readBytes = read(receivingPipe, msg, sizeof(msg));
-        if (readBytes == -1)
+        printf("%ld\n", readBytes);
+        if (readBytes !=0)
         {
-            printf("error to do 30 mbroker\n");
+            tfs_write(f, msg, sizeof(msg));
+            if (strlen(msg) == sizeof(msg))
+                printf("no /o here\n");
+            printf("wrote: %s\n",msg);
+        }
+        else{
+            active = false;
         }
         
-        tfs_write(f, msg, sizeof(msg));
-        if (strlen(msg) == sizeof(msg))
-            printf("no /o here\n");
-        printf("wrote: %s\n",msg);
     }
     tfs_close(f);
     close(receivingPipe);
@@ -76,51 +82,37 @@ int main(int argc, char **argv) {
     }
 
     int receivingPipe = open(argv[1], O_RDWR);
+    signal(SIGPIPE, SIG_IGN);
     while (true) {
-
-        signal(SIGPIPE, SIG_IGN);
-
-        //int sig;
-        //sigwait(&set, &sig);
-        //if(sig == SIGUSR1)
-
-        char buffer[1024];
-
-
-        uint8_t opcode;
-        ssize_t readBytes = read(receivingPipe, opcode, sizeof(uint8_t));
-         
-        ssize_t readBytes = read(receivingPipe, buffer, sizeof(buffer));
-        if (readBytes == -1) {
-            if (errno == EPIPE)
-                printf("pipe closed\n");
-            else
-                printf("read failed with error: %s\n", strerror(errno));
-            break;
-        }
-        //if (readBytes == 0) // if pipe is closed by other end
-        //    break;
-        //buffer[readBytes] = '\0'; // null terminate the buffer                                                   
-        int code = 0;
-        sscanf(buffer, "code = %d|%s",&code , buffer);
+        uint8_t code = 0;
+        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+        printf("code: %d\n", code);
+        if (readBytes == 0)
+                    break;
         char clientPipe[256];
-        char boxName[32];
+        char boxName[320];
         switch (code)
         {
             case 1:
-                // dois reads
-                sscanf(buffer, "%[^|]|%s",clientPipe , boxName);
+                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
+                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
+                printf("%s______%s\n",clientPipe,boxName);
                 // produzir
                 publisher(clientPipe,boxName);
                 break;
-
+            
             case 2:
-                sscanf(buffer, "%s|%s",clientPipe , boxName);
-                //subscriber()
+                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
+                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
+                // produzir
+                //subscriber(clientPipe,boxName);
                 break;
 
             case 3:
-                sscanf(buffer, "%[^|]|%s",clientPipe , boxName);
+                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
+                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
+                //printf("%s______%s\n",clientPipe,boxName);
+                // produzir
                 int f = tfs_open(boxName, TFS_O_CREAT);
                 if (f == -1){
                     printf("error to do 102 mbroke\n");
@@ -129,26 +121,31 @@ int main(int argc, char **argv) {
                 fprintf(stdout, "OK\n");
                 tfs_close(f);
                 int managerPipe = open(clientPipe, O_WRONLY);
-                char sendBuffer[1024];
-                sprintf(sendBuffer, "code = 4|%d|%s", 0, "failed");                                 //this is not right
+                char sendBuffer[1024 + 2*sizeof(uint8_t)];
+                char error[1024] = "failed";
+                sprintf(sendBuffer, "%d%d%s",(uint8_t)4 , (uint32_t)0, error);                                 //this is not right
+                printf("%s\n",sendBuffer);
                 ssize_t w = write(managerPipe, sendBuffer, 1024);
-                if (w < 0) {                                                                      //maybe remove
+                if (w < 0) {    
+                    printf("aqui\n");                                                                  //maybe remove
                     fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
                     exit(EXIT_FAILURE);
                 }
 
                 close(managerPipe);
                 break;
-            
+
             case 5:
-                sscanf(buffer, "%[^|]|%s",clientPipe , boxName);
+                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
+                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
+                // produzir
                 tfs_unlink(boxName);
                 printf("ayo unBoxed\n");
                 fprintf(stdout, "OK\n");
                 break;
 
             case 7:
-                sscanf(buffer, "%s",clientPipe);
+                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
                 //list_boxes()
                 break;
             

@@ -23,8 +23,10 @@ int main(int argc, char **argv) {
     (void)argv;
     //print_usage();
 
+    signal(SIGPIPE, SIG_IGN);
+
     char* mode = argv[3];
-    size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
+    size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]);
 
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
         fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1], strerror(errno));
@@ -38,20 +40,31 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(mode, "create") || !strcmp(mode, "remove"))
     {
-        int sendCode = 3;
+        uint8_t sendCode = 3;
         if (!strcmp(mode, "remove"))
             sendCode = 5;
         int mBrokerPipe = open(argv[2], O_WRONLY);
-        char sendBuffer[size];
-        sprintf(sendBuffer, "code = %d|%s|%s", sendCode, argv[1], argv[4]);
+
+        void* sendBuffer;
+        printf("%ld\n",sizeof(sendBuffer));
+        sendBuffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+
+        printf("%ld\n",sizeof(sendBuffer));
+
+        memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+
+        memcpy(sendBuffer, &sendCode, sizeof(uint8_t));
+        memcpy(sendBuffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
+        memcpy(sendBuffer + sizeof(char[256]) + sizeof(uint8_t), argv[4], sizeof(char[32]));
+
+        printf("%ld\n",sizeof(sendBuffer));
+
         ssize_t w = write(mBrokerPipe, sendBuffer, size);
+        free(sendBuffer);
         if (w < 0) {                                                                      //maybe remove
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        close(mBrokerPipe);
-
-        signal(SIGPIPE, SIG_IGN);
 
         int receivingPipe = open(argv[1], O_RDONLY);
         char buffer[3000];
@@ -66,7 +79,9 @@ int main(int argc, char **argv) {
         uint8_t code;
         int32_t returnCode;
         char error[1024];
-        sscanf(buffer, "code = %hhd|%d|%s", &code, &returnCode, error);
+        sscanf(buffer, "%hhd%d%s", &code, &returnCode, error);
+        close(receivingPipe);
+        close(mBrokerPipe);
         if (returnCode == -1)
             printf("%s\n",error);
         return returnCode;

@@ -31,7 +31,11 @@ int main(int argc, char **argv) {
         int mbroker_pipe = open(argv[2], O_WRONLY);
         size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
         char register_buffer[size];
-        sprintf(register_buffer, "code = %d|%s|%s", send_code, argv[1], argv[3]);
+        char client_pipe[256];
+        char box_name[32];
+        strcpy(client_pipe,argv[1]);
+        strcpy(box_name,argv[3]);
+        sprintf(register_buffer, "%hhd%s%s", (uint8_t)send_code, client_pipe, box_name);
         ssize_t w = write(mbroker_pipe, register_buffer, size);
         if(w == 1000000000000000){
             return -1;

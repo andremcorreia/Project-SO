@@ -16,6 +16,16 @@
 
 #include <pthread.h>
 
+void thread(char* clientPipe,char* boxName){
+    // inicializer
+    while(1) {
+        // consumir
+        // codigo trata publisher/sub/manager
+        // if/else para ver se e' publisher/sub...
+    }
+}
+
+
 void publisher(char* clientPipe,char* boxName){
     int f = tfs_open(boxName,TFS_O_APPEND);
     if (f == -1){
@@ -32,13 +42,14 @@ void publisher(char* clientPipe,char* boxName){
             printf("error to do 30 mbroker\n");
         }
         
-        close(receivingPipe);
         tfs_write(f, msg, sizeof(msg));
         if (strlen(msg) == sizeof(msg))
             printf("no /o here\n");
         printf("wrote: %s\n",msg);
     }
     tfs_close(f);
+    close(receivingPipe);
+
 }
 
 int main(int argc, char **argv) {
@@ -69,11 +80,16 @@ int main(int argc, char **argv) {
 
         signal(SIGPIPE, SIG_IGN);
 
-        int sig;
-        sigwait(&set, &sig);
-        if(sig == SIGUSR1)
+        //int sig;
+        //sigwait(&set, &sig);
+        //if(sig == SIGUSR1)
 
         char buffer[1024];
+
+
+        uint8_t opcode;
+        ssize_t readBytes = read(receivingPipe, opcode, sizeof(uint8_t));
+         
         ssize_t readBytes = read(receivingPipe, buffer, sizeof(buffer));
         if (readBytes == -1) {
             if (errno == EPIPE)
@@ -92,7 +108,9 @@ int main(int argc, char **argv) {
         switch (code)
         {
             case 1:
+                // dois reads
                 sscanf(buffer, "%[^|]|%s",clientPipe , boxName);
+                // produzir
                 publisher(clientPipe,boxName);
                 break;
 

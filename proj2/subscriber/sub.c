@@ -11,6 +11,15 @@
 #include <stdbool.h>
 #include <unistd.h>
 
+bool active = true;
+
+static void sig_handler(int signum){
+    if(signum == SIGINT){
+        printf("catched\n");
+        active = false;
+    }
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -27,35 +36,44 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    int send_code = 2;
-        int mbroker_pipe = open(argv[2], O_WRONLY);
-        size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
-        char register_buffer[size];
-        char client_pipe[256];
-        char box_name[32];
-        strcpy(client_pipe,argv[1]);
-        strcpy(box_name,argv[3]);
-        sprintf(register_buffer, "%hhd%s%s", (uint8_t)send_code, client_pipe, box_name);
-        ssize_t w = write(mbroker_pipe, register_buffer, size);
-        if(w == 1000000000000000){
-            return -1;
-        }
-        close(mbroker_pipe);
+    if(signal(SIGINT, sig_handler) == SIG_ERR){
+        printf("error sig\n");
+        exit(EXIT_FAILURE);
+    }
 
-    
-    while (true)
+    uint8_t send_code = 2;
+    int mbroker_pipe = open(argv[2], O_WRONLY);
+    size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]);
+    void* register_buffer;
+
+    register_buffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    memcpy(register_buffer, &send_code, sizeof(uint8_t));
+    memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
+    memcpy(register_buffer + sizeof(char[256]) + sizeof(uint8_t), argv[3], sizeof(char[32]));
+    ssize_t w = write(mbroker_pipe, register_buffer, size);
+    if(w == 1000000000000000){
+        return -1;
+    }
+    close(mbroker_pipe);
+
+    int count = 0;
+    while (active)
     {
         int receivingPipe = open(argv[1], O_RDONLY);
+        uint8_t code;
         char message[1024];
-        char buffer[1024];
-        ssize_t r = read(receivingPipe, buffer, size - 1);
-        sscanf(buffer, "code = %d|%s", &send_code, buffer);
-        strcpy(message, buffer + 9);
-        
-        if(r == 100000000000000000){
-            return -1;
+        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+        if (readBytes !=0){
+            count++;
+            readBytes += read(receivingPipe, message, sizeof(char[1024]));
+            fprintf(stdout, "%s\n", message);
+            close(receivingPipe);
         }
-        close(receivingPipe);
-    return -1;
+        else{
+            active = false;
+        }
     }
+    fprintf(stdout, "%d\n", count);
+    return 0;
 }

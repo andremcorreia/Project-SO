@@ -16,6 +16,100 @@
 
 #include <pthread.h>
 
+struct mainNode {
+    char box_name[32];
+    char file_name[33];
+    struct subscriptions* subs;
+    struct mainNode* next;
+};
+
+struct subNode {
+    char pipe_to_sub[256];
+    struct subNode* next;
+};
+
+struct subscriptions {
+    struct subNode* head;
+    struct subNode* tail;
+};
+
+struct linkedList {
+    struct mainNode* head;
+    struct mainNode* tail;
+};
+
+void addBox(struct linkedList* list, char* box_name) {
+    struct mainNode* newNode = (struct mainNode*)malloc(sizeof(struct mainNode));
+    memcpy(newNode->box_name,box_name,sizeof(char[32]));
+    newNode->subs = (struct subscriptions*)malloc(sizeof(struct subscriptions));
+    newNode->subs->head = NULL;
+    newNode->subs->tail = NULL;
+    newNode->next = NULL;
+    if (list->head == NULL) {
+        list->head = newNode;
+        list->tail = newNode;
+    } else {
+        list->tail->next = newNode;
+        list->tail = newNode;
+    }
+}
+
+void removeBox(struct linkedList* list, char* box_name) {
+    struct mainNode* curr = list->head;
+    struct mainNode* prev = NULL;
+
+    while (curr != NULL) {
+        if (!strcmp(curr->box_name,box_name)) {
+            if (prev == NULL) {
+                list->head = curr->next;
+            } else {
+                prev->next = curr->next;
+            }
+            free(curr->subs);
+            free(curr);
+            break;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+}
+
+void addSub(struct subscriptions* list, char* pipe_to_sub) {
+    struct subNode* newNode = (struct subNode*)malloc(sizeof(struct subNode));
+    memcpy(newNode->pipe_to_sub,pipe_to_sub,sizeof(char[256]));
+    newNode->next = NULL;
+    if (list->head == NULL) {
+        list->head = newNode;
+        list->tail = newNode;
+    } else {
+        list->tail->next = newNode;
+        list->tail = newNode;
+    }
+}
+
+void removeSub(struct subscriptions* list, char* pipe_to_sub) {
+    struct subNode* curr = list->head;
+    struct subNode* prev = NULL;
+
+    while (curr != NULL) {
+        if (!strcmp(curr->pipe_to_sub,pipe_to_sub)) {
+            if (prev == NULL) {
+                list->head = curr->next;
+            } else {
+                prev->next = curr->next;
+            }
+            free(curr);
+            break;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+}
+
+struct linkedList boxes;
+    
+
+
 //void thread(char* clientPipe,char* boxName){
 //    // inicializer
 //    while(1) {
@@ -65,6 +159,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: mbroker <pipename> <max_sesions>\n");
     }
 
+    boxes.head = NULL;
+    boxes.tail = NULL;
+
     tfs_init(NULL);
 
     //long threadCount = (long)argv[2];
@@ -96,7 +193,6 @@ int main(int argc, char **argv) {
             case 1:
                 readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
                 readBytes += read(receivingPipe, boxName, sizeof(char[32]));
-                printf("%s______%s\n",clientPipe,boxName);
                 // produzir
                 publisher(clientPipe,boxName);
                 break;
@@ -113,19 +209,29 @@ int main(int argc, char **argv) {
                 readBytes += read(receivingPipe, boxName, sizeof(char[32]));
                 //printf("%s______%s\n",clientPipe,boxName);
                 // produzir
-                int f = tfs_open(boxName, TFS_O_CREAT);
+                char file[33];
+                sprintf(file,"/%s",boxName);
+                int f = tfs_open(file, TFS_O_CREAT);
                 if (f == -1){
                     printf("error to do 102 mbroke\n");
                 }
-                printf("ayo Boxed\n");
+                addBox(&boxes,file);
+                printf("Boxed\n");
                 fprintf(stdout, "OK\n");
                 tfs_close(f);
                 int managerPipe = open(clientPipe, O_WRONLY);
-                char sendBuffer[1024 + 2*sizeof(uint8_t)];
-                char error[1024] = "failed";
-                sprintf(sendBuffer, "%d%d%s",(uint8_t)4 , (uint32_t)0, error);                                 //this is not right
-                printf("%s\n",sendBuffer);
+                char error[1024] = "error placeholder";
+                code = 4;
+                uint32_t return_code = 0; //falta -1 se erro
+                void* sendBuffer;
+                sendBuffer = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+                memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+                memcpy(sendBuffer, &code, sizeof(uint8_t));
+                memcpy(sendBuffer + sizeof(uint8_t), &return_code, sizeof(uint32_t));
+                memcpy(sendBuffer + sizeof(uint32_t) + sizeof(uint8_t), error, sizeof(char[32]));
+                //printf("responding with: %s\n",sendBuffer);
                 ssize_t w = write(managerPipe, sendBuffer, 1024);
+                free(sendBuffer);
                 if (w < 0) {    
                     printf("aqui\n");                                                                  //maybe remove
                     fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
@@ -139,9 +245,30 @@ int main(int argc, char **argv) {
                 readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
                 readBytes += read(receivingPipe, boxName, sizeof(char[32]));
                 // produzir
-                tfs_unlink(boxName);
+                char file[33];
+                sprintf(file,"/%s",boxName);
+                tfs_unlink(file);
                 printf("ayo unBoxed\n");
-                fprintf(stdout, "OK\n");
+                int managerPipe1 = open(clientPipe, O_WRONLY);
+                char error1[1024] = "error placeholder";
+                code = 6;
+                uint32_t return_code1 = 0; //falta -1 se erro
+                void* sendBuffer1;
+                sendBuffer1 = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+                memset(sendBuffer1,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+                memcpy(sendBuffer1, &code, sizeof(uint8_t));
+                memcpy(sendBuffer1 + sizeof(uint8_t), &return_code1, sizeof(uint32_t));
+                memcpy(sendBuffer1 + sizeof(uint32_t) + sizeof(uint8_t), error1, sizeof(char[32]));
+                //printf("responding with: %s\n",sendBuffer1);
+                ssize_t r = write(managerPipe1, sendBuffer1, 1024);
+                free(sendBuffer1);
+                if (r < 0) {    
+                    printf("aqui\n");                                                                  //maybe remove
+                    fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
+
+                close(managerPipe1);
                 break;
 
             case 7:

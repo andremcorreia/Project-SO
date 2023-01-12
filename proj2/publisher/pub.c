@@ -11,8 +11,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-//void signal_handler(int signum) {
-//}
 bool active = true;
 
 static void sig_handler(int signum){
@@ -44,15 +42,21 @@ int main(int argc, char **argv) {
     }
 
 
+    size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]);
+    
+    uint8_t sendCode = 1;
     int mbroker_pipe = open(argv[2], O_WRONLY);
-    size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
-    char register_buffer[size];
-    char client_pipe[256];
-    char box_name[32];
-    strcpy(client_pipe,argv[1]);
-    strcpy(box_name,argv[3]);
-    sprintf(register_buffer, "%hhd%s%s", (uint8_t)1, client_pipe, box_name);
+
+    void* register_buffer;
+    
+    register_buffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    memcpy(register_buffer, &sendCode, sizeof(uint8_t));
+    memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
+    memcpy(register_buffer + sizeof(char[256]) + sizeof(uint8_t), argv[3], sizeof(char[32]));
+
     ssize_t wb = write(mbroker_pipe, register_buffer, size);
+    free(register_buffer);
     if(wb == 100000000000000000){
         return -1;
     }
@@ -73,5 +77,5 @@ int main(int argc, char **argv) {
         }
     }
     close(pipe_self);
-    return -1;
+    return 0;
 }

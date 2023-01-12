@@ -43,23 +43,17 @@ int main(int argc, char **argv) {
         uint8_t sendCode = 3;
         if (!strcmp(mode, "remove"))
             sendCode = 5;
-        int mBrokerPipe = open(argv[2], O_WRONLY);
+        int mbroker_pipe = open(argv[2], O_WRONLY);
 
         void* sendBuffer;
-        printf("%ld\n",sizeof(sendBuffer));
+        
         sendBuffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-
-        printf("%ld\n",sizeof(sendBuffer));
-
         memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-
         memcpy(sendBuffer, &sendCode, sizeof(uint8_t));
         memcpy(sendBuffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
         memcpy(sendBuffer + sizeof(char[256]) + sizeof(uint8_t), argv[4], sizeof(char[32]));
 
-        printf("%ld\n",sizeof(sendBuffer));
-
-        ssize_t w = write(mBrokerPipe, sendBuffer, size);
+        ssize_t w = write(mbroker_pipe, sendBuffer, size);
         free(sendBuffer);
         if (w < 0) {                                                                      //maybe remove
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
@@ -79,11 +73,21 @@ int main(int argc, char **argv) {
         uint8_t code;
         int32_t returnCode;
         char error[1024];
+
         sscanf(buffer, "%hhd%d%s", &code, &returnCode, error);
+
+        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+        readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
+        readBytes += read(receivingPipe, error, sizeof(char[1024]));
+
         close(receivingPipe);
-        close(mBrokerPipe);
-        if (returnCode == -1)
+        close(mbroker_pipe);
+        if (returnCode == -1){
             printf("%s\n",error);
+        } else
+        {
+            fprintf(stdout, "OK\n");
+        }
         return returnCode;
     }
     else if (strcmp(mode, "list"))

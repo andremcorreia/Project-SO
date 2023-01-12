@@ -11,20 +11,13 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-void signal_handler(int signum) {
-}
+//void signal_handler(int signum) {
+//}
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     //fprintf(stderr, "usage: pub <register_pipe_name> <pipe_name> <box_name>\n");
-
-    signal(SIGUSR1, signal_handler);
-
-    sigset_t set;
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR1);
-    sigprocmask(SIG_BLOCK, &set, NULL);
 
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
         fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1], strerror(errno));
@@ -49,9 +42,9 @@ int main(int argc, char **argv) {
     close(mbroker_pipe);
 
     
+    int pipe_self = open(argv[1], O_WRONLY);
     while (true)
     {   
-        int pipe_self = open(argv[1], O_WRONLY);
         char message[1024];
         if (scanf("%s\n", message))
         {
@@ -61,7 +54,7 @@ int main(int argc, char **argv) {
                 return -1;
             }
         }
-        close(pipe_self);
     }
+    close(pipe_self);
     return -1;
 }

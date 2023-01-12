@@ -36,7 +36,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[ERR]: mkfifo failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-
     if (!strcmp(mode, "create") || !strcmp(mode, "remove"))
     {
         int sendCode = 3;
@@ -57,79 +56,24 @@ int main(int argc, char **argv) {
         int receivingPipe = open(argv[1], O_RDONLY);
         char buffer[3000];
 
-        while (true) {
-            ssize_t ret = read(receivingPipe, buffer, 3000 - 1);
-            if (ret == 0) {                                                                 //maybe remove
-                // ret == 0 signals EOF
-                fprintf(stderr, "[INFO]: parent closed the pipe\n");
-                break;
-            } else if (ret == -1) {
-                // ret == -1 signals error
-                fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
-                exit(EXIT_FAILURE);
-            }
-            uint8_t code;
-            int32_t returnCode;
-            char error[1024];
-            sscanf(buffer, "code = %hhd|%d|%s", &code, &returnCode, error);
-            if (returnCode == -1)
-                printf("%s\n",error);
-            return returnCode;
+        ssize_t ret = read(receivingPipe, buffer, 3000 - 1);
+        if (ret == -1) {
+            printf("yo\n");
+            // ret == -1 signals error
+            fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
         }
+        uint8_t code;
+        int32_t returnCode;
+        char error[1024];
+        sscanf(buffer, "code = %hhd|%d|%s", &code, &returnCode, error);
+        if (returnCode == -1)
+            printf("%s\n",error);
+        return returnCode;
     }
     else if (strcmp(mode, "list"))
     {
         //later
     }
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    /*
-    int receivingPipe = open(argv[1], O_RDONLY);
-    int size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
-
-    char buffer[size];
-    ssize_t readBytes = read(receivingPipe, buffer, size - 1);
-    int code = 0;
-    sscanf("code = %d|%s",code , buffer);
-    switch (code)
-    {
-        case 4:
-            int32_t return_code;
-            char error_message[1024];
-            sscanf("%ld|%s\0",return_code , error_message );
-            //publisher()
-            break;
-
-        case 2:
-            char clientPipe[256];
-            char boxName[32];
-            sscanf("%s|%s\0",clientPipe , boxName);
-            //subscriber()
-            break;
-
-        case 3:
-            char clientPipe[256];
-            char boxName[32];
-            sscanf("%s|%s\0",clientPipe , boxName);
-            //create_box()
-            break;
-        default:
-            break;
-    }*/
-
     return 0;
 }

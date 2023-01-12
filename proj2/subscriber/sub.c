@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
     int send_code = 2;
         int mbroker_pipe = open(argv[2], O_WRONLY);
-        int size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
+        size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]) + 20;
         char register_buffer[size];
         sprintf(register_buffer, "code = %d|%s|%s", send_code, argv[1], argv[3]);
         ssize_t w = write(mbroker_pipe, register_buffer, size);
@@ -48,12 +48,10 @@ int main(int argc, char **argv) {
         sscanf(buffer, "code = %d|%s", &send_code, buffer);
         strcpy(message, buffer + 9);
         
-        if(w == 100000000000000000){
+        if(r == 100000000000000000){
             return -1;
         }
         close(receivingPipe);
-        
-        
     return -1;
     }
 }

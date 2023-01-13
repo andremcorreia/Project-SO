@@ -1,4 +1,5 @@
 #include "logging.h"
+#include "producer-consumer.h"
 
 #include "logging.h"
 #include "operations.h"
@@ -108,24 +109,28 @@ void removeSub(struct subscriptions* list, char* pipe_to_sub) {
 
 struct linkedList boxes;
 
+struct request
+{
+    uint8_t code;
+    char client_pipe[256];
+    char box[32];
+};
+
+
 int Max_sessions;
     
 int prodptr=0, consptr=0, count=0;
-pthread_mutex_t mutex;
-pthread_cond_t podeProd, podeCons; 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t podeProd = PTHREAD_COND_INITIALIZER;
+pthread_cond_t podeCons = PTHREAD_COND_INITIALIZER;
+pc_queue_t queue;
 
-void thread(char* clientPipe,char* boxName){
-    int buf[Max_sessions]
-    // inicializer
-    while(1) {
-        // consumir
-        // codigo trata publisher/sub/manager
-        // if/else para ver se e' publisher/sub...
-    }
-}
+bool ended = false;
 
 void publisher(char* clientPipe,char* boxName){
-    int f = tfs_open(boxName,TFS_O_APPEND);
+    char file[33];
+    sprintf(file,"/%s",boxName);
+    int f = tfs_open(file,TFS_O_APPEND);
     if (f == -1){
         printf("error to do in L126 - mbroker.c\n");
         return;
@@ -157,13 +162,103 @@ void publisher(char* clientPipe,char* boxName){
 
 }
 
+void managerReplier(uint8_t code, char* clientPipe){
+    int managerPipe = open(clientPipe, O_WRONLY);
+    char error[1024] = "error placeholder";
+    uint32_t return_code = 0; //falta -1 se erro
+    void* sendBuffer;
+    sendBuffer = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+    memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    memcpy(sendBuffer, &code, sizeof(uint8_t));
+    memcpy(sendBuffer + sizeof(uint8_t), &return_code, sizeof(uint32_t));
+    memcpy(sendBuffer + sizeof(uint32_t) + sizeof(uint8_t), error, sizeof(char[32]));
+    //printf("responding with: %s\n",sendBuffer);
+    ssize_t w = write(managerPipe, sendBuffer, 1024);
+    free(sendBuffer);
+    if (w < 0) {    
+        printf("aqui\n");                                                                  //maybe remove
+        fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    close(managerPipe);
+}
+
+void manageCreate(char* clientPipe, char* boxName){
+    char file[33];
+    sprintf(file,"/%s",boxName);
+    int f = tfs_open(file, TFS_O_CREAT);
+    if (f == -1){
+        printf("error to do 102 mbroke\n");
+    }
+    addBox(&boxes,file);
+    printf("Boxed\n");
+    fprintf(stdout, "OK\n");
+    tfs_close(f);
+    managerReplier(4, clientPipe); 
+}
+
+void manageRemove(char* clientPipe, char* boxName){
+    char file[33];
+    sprintf(file,"/%s",boxName);
+    tfs_unlink(file);
+    printf("ayo unBoxed\n");
+    managerReplier(6, clientPipe);
+}
+
+void thread(){
+    while (!ended) {
+        pthread_mutex_lock(&mutex);
+        while (count == 0) pthread_cond_wait(&podeCons, &mutex);
+        printf("yh %s\n","someone");
+        struct request item = *(struct request*)pcq_dequeue(&queue);
+        pthread_cond_signal(&podeProd);
+        pthread_mutex_unlock(&mutex);
+        switch (item.code)
+        {
+        case 1:
+            //max 1 per box!
+            printf("started %s\n",item.client_pipe);
+            publisher(item.client_pipe,item.box);
+            break;
+        case 2:
+            //subscriber();
+            break;
+        case 3:
+            manageCreate(item.client_pipe,item.box);
+            break;
+        case 5:
+            manageRemove(item.client_pipe,item.box);
+            break;
+        case 7:
+            //managerList();
+            break;
+        default:
+            break;
+        }
+
+
+        count--;
+        // da queue tirar code e args necessarios
+        // call a funcao needeed
+        
+    }
+
+    // inicializer
+    //while(1) {
+        // consumir
+        // codigo trata publisher/sub/manager
+        // if/else para ver se e' publisher/sub...
+    //}
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     if (argc != 3){
         fprintf(stderr, "usage: mbroker <pipename> <max_sesions>\n");
     }
-    Max_sessions = argv[2];
+    Max_sessions = atoi(argv[2]);
 
     boxes.head = NULL;
     boxes.tail = NULL;
@@ -184,6 +279,18 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    pcq_create(&queue, (size_t)Max_sessions);
+
+    pthread_t tid[Max_sessions];
+    
+    for (int i = 0; i < Max_sessions; i++)
+    {
+        if (pthread_create(&tid[i], NULL, (void*)thread, (void*) NULL) != 0) {
+            printf("Failed while creating the threads\n");
+            return -1;
+        }
+    }
+
     int receivingPipe = open(argv[1], O_RDWR);
     signal(SIGPIPE, SIG_IGN);
     while (true) {
@@ -194,120 +301,35 @@ int main(int argc, char **argv) {
                     break;
         char clientPipe[256];
         char boxName[320];
-        switch (code)
+
+        pthread_mutex_lock(&mutex);
+        while (count == Max_sessions) pthread_cond_wait(&podeProd, &mutex);
+
+        struct request item;
+        item.code = code;
+        readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
+        memcpy(item.client_pipe, clientPipe, sizeof(char[256]));
+        if (code != 7)
         {
-            case 1:
-                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
-                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
-                // produzir
-                publisher(clientPipe,boxName);
-                break;
-            
-            case 2:
-                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
-                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
-                // produzir
-                //subscriber(clientPipe,boxName);
-                break;
-
-            case 3:
-                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
-                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
-                //printf("%s______%s\n",clientPipe,boxName);
-                // produzir
-                char file[33];
-                sprintf(file,"/%s",boxName);
-                int f = tfs_open(file, TFS_O_CREAT);
-                if (f == -1){
-                    printf("error to do 102 mbroke\n");
-                }
-                addBox(&boxes,file);
-                printf("Boxed\n");
-                fprintf(stdout, "OK\n");
-                tfs_close(f);
-                int managerPipe = open(clientPipe, O_WRONLY);
-                char error[1024] = "error placeholder";
-                code = 4;
-                uint32_t return_code = 0; //falta -1 se erro
-                void* sendBuffer;
-                sendBuffer = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
-                memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-                memcpy(sendBuffer, &code, sizeof(uint8_t));
-                memcpy(sendBuffer + sizeof(uint8_t), &return_code, sizeof(uint32_t));
-                memcpy(sendBuffer + sizeof(uint32_t) + sizeof(uint8_t), error, sizeof(char[32]));
-                //printf("responding with: %s\n",sendBuffer);
-                ssize_t w = write(managerPipe, sendBuffer, 1024);
-                free(sendBuffer);
-                if (w < 0) {    
-                    printf("aqui\n");                                                                  //maybe remove
-                    fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-
-                close(managerPipe);
-                break;
-
-            case 5:
-                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
-                readBytes += read(receivingPipe, boxName, sizeof(char[32]));
-                // produzir
-                char file[33];
-                sprintf(file,"/%s",boxName);
-                tfs_unlink(file);
-                printf("ayo unBoxed\n");
-                int managerPipe1 = open(clientPipe, O_WRONLY);
-                char error1[1024] = "error placeholder";
-                code = 6;
-                uint32_t return_code1 = 0; //falta -1 se erro
-                void* sendBuffer1;
-                sendBuffer1 = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
-                memset(sendBuffer1,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-                memcpy(sendBuffer1, &code, sizeof(uint8_t));
-                memcpy(sendBuffer1 + sizeof(uint8_t), &return_code1, sizeof(uint32_t));
-                memcpy(sendBuffer1 + sizeof(uint32_t) + sizeof(uint8_t), error1, sizeof(char[32]));
-                //printf("responding with: %s\n",sendBuffer1);
-                ssize_t r = write(managerPipe1, sendBuffer1, 1024);
-                free(sendBuffer1);
-                if (r < 0) {    
-                    printf("aqui\n");                                                                  //maybe remove
-                    fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-
-                close(managerPipe1);
-                break;
-
-            case 7:
-                readBytes += read(receivingPipe, clientPipe, sizeof(char[256]));
-                //list_boxes()
-                break;
-            
-            default:
-                break;
+            readBytes += read(receivingPipe, boxName, sizeof(char[32]));
+            memcpy(item.box, boxName, sizeof(char[32]));
+        }
+        else
+        {
+            memset(item.box, 0, sizeof(char[32]));
         }
         
+        pcq_enqueue(&queue, &item);
+        count++;
+        pthread_cond_signal(&podeCons);
+        pthread_mutex_unlock(&mutex);
     }
-/*    pthread_t tid[threadCount];
-    
-    for (int i = 0; i < threadCount; i++)
-    {
-        if (pthread_create(&tid[i], NULL, NULL, (void*) NULL) != 0) {
-            printf("Failed while creating the threads\n");
-            return -1;
-        }
-    }
-    
+    ended = true;
 
-
-
-    for (int i = 0; i < threadCount; i++)
+    for (int i = 0; i < Max_sessions; i++)
     {
         pthread_join(tid[i], NULL);
     }
-    */
     return -1;
     
 }       
-
-//signal(SIGPIPE,SIGIGN)
-//if errno = EPIPE -> open wr

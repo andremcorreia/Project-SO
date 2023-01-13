@@ -41,11 +41,21 @@ struct linkedList {
 
 void addBox(struct linkedList* list, char* box_name) {
     struct mainNode* newNode = (struct mainNode*)malloc(sizeof(struct mainNode));
+    if(newNode == NULL) {
+        printf("Error: malloc failed\n");
+        return;
+    }
     memcpy(newNode->box_name,box_name,sizeof(char[32]));
     newNode->subs = (struct subscriptions*)malloc(sizeof(struct subscriptions));
+    if(newNode->subs == NULL) {
+        printf("Error: malloc failed\n");
+        free(newNode);
+        return;
+    }
     newNode->subs->head = NULL;
     newNode->subs->tail = NULL;
     newNode->next = NULL;
+    //pthread_mutex_lock(&list_mutex);
     if (list->head == NULL) {
         list->head = newNode;
         list->tail = newNode;
@@ -53,6 +63,8 @@ void addBox(struct linkedList* list, char* box_name) {
         list->tail->next = newNode;
         list->tail = newNode;
     }
+    //pthread_mutex_unlock(&list_mutex);
+    free(newNode->subs);
 }
 
 void removeBox(struct linkedList* list, char* box_name) {
@@ -77,6 +89,11 @@ void removeBox(struct linkedList* list, char* box_name) {
 
 void addSub(struct subscriptions* list, char* pipe_to_sub) {
     struct subNode* newNode = (struct subNode*)malloc(sizeof(struct subNode));
+    if(newNode == NULL) {
+        printf("Error: malloc failed\n");
+        free(newNode);
+        exit(EXIT_FAILURE);
+    }
     memcpy(newNode->pipe_to_sub,pipe_to_sub,sizeof(char[256]));
     newNode->next = NULL;
     if (list->head == NULL) {
@@ -120,6 +137,8 @@ struct request
 int Max_sessions;
     
 int count=0;
+//pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t podeProd = PTHREAD_COND_INITIALIZER;
 pthread_cond_t podeCons = PTHREAD_COND_INITIALIZER;
@@ -137,20 +156,21 @@ void publisher(char* clientPipe,char* boxName){
     }
     char msg[1024];
 
-    int receivingPipe = open(clientPipe, O_RDONLY);
+    int receivingPipe = open(clientPipe, O_RDWR); // rdonly dava segmentation 
 
     bool active = true;
 
     while (active)
     {    
         ssize_t readBytes = read(receivingPipe, msg, sizeof(msg));
-        printf("%ld\n", readBytes);
         if (readBytes !=0)
         {
+            //pthread_mutex_lock(&file_mutex);
             tfs_write(f, msg, sizeof(msg));
+            //pthread_mutex_unlock(&file_mutex);
             if (strlen(msg) == sizeof(msg))
                 printf("no /o here\n");
-            printf("wrote: %s\n",msg);
+            printf("%s wrote: %s\n",clientPipe, msg);
         }
         else{
             active = false;
@@ -163,18 +183,29 @@ void publisher(char* clientPipe,char* boxName){
 }
 
 void managerReplier(uint8_t code, char* clientPipe){
+    
     int managerPipe = open(clientPipe, O_WRONLY);
+
     char error[1024] = "error placeholder";
     uint32_t return_code = 0; //falta -1 se erro
     void* sendBuffer;
+
     sendBuffer = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+    if(sendBuffer == NULL) {
+        printf("Error: malloc failed\n");
+        free(sendBuffer);
+        exit(EXIT_FAILURE);
+    }
     memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
     memcpy(sendBuffer, &code, sizeof(uint8_t));
     memcpy(sendBuffer + sizeof(uint8_t), &return_code, sizeof(uint32_t));
     memcpy(sendBuffer + sizeof(uint32_t) + sizeof(uint8_t), error, sizeof(char[32]));
-    //printf("responding with: %s\n",sendBuffer);
-    ssize_t w = write(managerPipe, sendBuffer, 1024);
+    printf("responding with: %s\n",(char*)sendBuffer);
+
+    ssize_t w = write(managerPipe, sendBuffer, sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+    printf("responding with: a");
     free(sendBuffer);
+
     if (w < 0) {    
         printf("aqui\n");                                                                  //maybe remove
         fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
@@ -189,7 +220,7 @@ void manageCreate(char* clientPipe, char* boxName){
     sprintf(file,"/%s",boxName);
     int f = tfs_open(file, TFS_O_CREAT);
     if (f == -1){
-        printf("error to do 102 mbroke\n");
+        printf("file cant be opened\n");
     }
     addBox(&boxes,file);
     printf("Boxed\n");
@@ -201,7 +232,11 @@ void manageCreate(char* clientPipe, char* boxName){
 void manageRemove(char* clientPipe, char* boxName){
     char file[33];
     sprintf(file,"/%s",boxName);
+    if(tfs_open(file, 0) == -1){
+        printf("file cant be opened so it cant be removed\n");
+    }
     tfs_unlink(file);
+    removeBox(&boxes, file);
     printf("ayo unBoxed\n");
     managerReplier(6, clientPipe);
 }
@@ -210,7 +245,6 @@ void thread(){
     while (!ended) {
         pthread_mutex_lock(&mutex);
         while (count == 0) pthread_cond_wait(&podeCons, &mutex);
-        printf("yh %s\n","someone");
         struct request item = *(struct request*)pcq_dequeue(&queue);
         pthread_cond_signal(&podeProd);
         pthread_mutex_unlock(&mutex);
@@ -293,7 +327,7 @@ int main(int argc, char **argv) {
 
     int receivingPipe = open(argv[1], O_RDWR);
     signal(SIGPIPE, SIG_IGN);
-    while (true) {
+    while (ended) { //ver para sigint quando se da ctrl c na mbroker
         uint8_t code = 0;
         ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
         printf("code: %d\n", code);
@@ -332,4 +366,7 @@ int main(int argc, char **argv) {
     }
     return -1;
     
-}       
+    pcq_destroy(&queue);
+    tfs_destroy();
+    
+} 

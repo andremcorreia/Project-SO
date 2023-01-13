@@ -47,6 +47,11 @@ int main(int argc, char **argv) {
     void* register_buffer;
 
     register_buffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+    if(register_buffer == NULL) {
+        printf("Error: malloc failed\n");
+        free(register_buffer);
+        exit(EXIT_FAILURE);
+    }
     memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
     memcpy(register_buffer, &send_code, sizeof(uint8_t));
     memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));

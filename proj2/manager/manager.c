@@ -45,45 +45,48 @@ int main(int argc, char **argv) {
             sendCode = 5;
         int mbroker_pipe = open(argv[2], O_WRONLY);
 
-        void* sendBuffer;
+        void* register_buffer;
         
-        sendBuffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-        memset(sendBuffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-        memcpy(sendBuffer, &sendCode, sizeof(uint8_t));
-        memcpy(sendBuffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
-        memcpy(sendBuffer + sizeof(char[256]) + sizeof(uint8_t), argv[4], sizeof(char[32]));
+        register_buffer = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+        if(register_buffer == NULL) {
+            printf("Error: malloc failed\n");
+            free(register_buffer);
+            exit(EXIT_FAILURE);
+        }
+        memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
+        memcpy(register_buffer, &sendCode, sizeof(uint8_t));
+        memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
+        memcpy(register_buffer + sizeof(char[256]) + sizeof(uint8_t), argv[4], sizeof(char[32]));
 
-        ssize_t w = write(mbroker_pipe, sendBuffer, size);
-        free(sendBuffer);
+        ssize_t w = write(mbroker_pipe, register_buffer, size);
+        free(register_buffer);
         if (w < 0) {                                                                      //maybe remove
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
 
-        int receivingPipe = open(argv[1], O_RDONLY);
-        char buffer[3000];
+        close(mbroker_pipe);
 
-        ssize_t ret = read(receivingPipe, buffer, 3000 - 1);
-        if (ret == -1) {
+        int receivingPipe = open(argv[1], O_RDONLY);
+        
+       
+        uint8_t code;
+        int32_t returnCode;
+        char error[1024];
+
+        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+        readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
+        readBytes += read(receivingPipe, error, sizeof(char[1024]));
+         if (readBytes == -1) {
             printf("yo\n");
             // ret == -1 signals error
             fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        uint8_t code;
-        int32_t returnCode;
-        char error[1024];
-
-        sscanf(buffer, "%hhd%d%s", &code, &returnCode, error);
-
-        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
-        readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
-        readBytes += read(receivingPipe, error, sizeof(char[1024]));
 
         close(receivingPipe);
-        close(mbroker_pipe);
         if (returnCode == -1){
-            printf("%s\n",error);
+            fprintf(stdout,"ERROR %s\n",error);
         } else
         {
             fprintf(stdout, "OK\n");

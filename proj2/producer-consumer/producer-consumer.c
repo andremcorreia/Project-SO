@@ -34,7 +34,7 @@ int pcq_create(pc_queue_t *queue, size_t capacity){
     queue->pcq_buffer = (void**)malloc(capacity * sizeof(void*));
     if (queue->pcq_buffer == NULL) {
         free(queue);
-        return -1;
+        exit(EXIT_FAILURE);
     }
     queue->pcq_capacity = capacity;
     queue->pcq_current_size = 0;
@@ -122,4 +122,3 @@ void *pcq_dequeue(pc_queue_t *queue){
 
     return elem;
 }
-

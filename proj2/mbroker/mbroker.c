@@ -45,8 +45,17 @@ void addBox(struct linkedList* list, char* box_name) {
         printf("Error: malloc failed\n");
         return;
     }
+    if(newNode == NULL) {
+        printf("Error: malloc failed\n");
+        return;
+    }
     memcpy(newNode->box_name,box_name,sizeof(char[32]));
     newNode->subs = (struct subscriptions*)malloc(sizeof(struct subscriptions));
+    if(newNode->subs == NULL) {
+        printf("Error: malloc failed\n");
+        free(newNode);
+        return;
+    }
     if(newNode->subs == NULL) {
         printf("Error: malloc failed\n");
         free(newNode);
@@ -56,6 +65,7 @@ void addBox(struct linkedList* list, char* box_name) {
     newNode->subs->tail = NULL;
     newNode->next = NULL;
     //pthread_mutex_lock(&list_mutex);
+    //pthread_mutex_lock(&list_mutex);
     if (list->head == NULL) {
         list->head = newNode;
         list->tail = newNode;
@@ -63,6 +73,8 @@ void addBox(struct linkedList* list, char* box_name) {
         list->tail->next = newNode;
         list->tail = newNode;
     }
+    //pthread_mutex_unlock(&list_mutex);
+    free(newNode->subs);
     //pthread_mutex_unlock(&list_mutex);
     free(newNode->subs);
 }
@@ -89,6 +101,11 @@ void removeBox(struct linkedList* list, char* box_name) {
 
 void addSub(struct subscriptions* list, char* pipe_to_sub) {
     struct subNode* newNode = (struct subNode*)malloc(sizeof(struct subNode));
+    if(newNode == NULL) {
+        printf("Error: malloc failed\n");
+        free(newNode);
+        exit(EXIT_FAILURE);
+    }
     if(newNode == NULL) {
         printf("Error: malloc failed\n");
         free(newNode);
@@ -139,6 +156,8 @@ int Max_sessions;
 int count=0;
 //pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 //pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t podeProd = PTHREAD_COND_INITIALIZER;
 pthread_cond_t podeCons = PTHREAD_COND_INITIALIZER;
@@ -157,6 +176,7 @@ void publisher(char* clientPipe,char* boxName){
     char msg[1024];
 
     int receivingPipe = open(clientPipe, O_RDWR); // rdonly dava segmentation 
+    int receivingPipe = open(clientPipe, O_RDWR); // rdonly dava segmentation 
 
     bool active = true;
 
@@ -166,10 +186,13 @@ void publisher(char* clientPipe,char* boxName){
         if (readBytes !=0)
         {
             //pthread_mutex_lock(&file_mutex);
+            //pthread_mutex_lock(&file_mutex);
             tfs_write(f, msg, sizeof(msg));
+            //pthread_mutex_unlock(&file_mutex);
             //pthread_mutex_unlock(&file_mutex);
             if (strlen(msg) == sizeof(msg))
                 printf("no /o here\n");
+            printf("%s wrote: %s\n",clientPipe, msg);
             printf("%s wrote: %s\n",clientPipe, msg);
         }
         else{
@@ -184,13 +207,21 @@ void publisher(char* clientPipe,char* boxName){
 
 void managerReplier(uint8_t code, char* clientPipe){
     
+    
     int managerPipe = open(clientPipe, O_WRONLY);
+
 
     char error[1024] = "error placeholder";
     uint32_t return_code = 0; //falta -1 se erro
     void* sendBuffer;
 
+
     sendBuffer = malloc(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+    if(sendBuffer == NULL) {
+        printf("Error: malloc failed\n");
+        free(sendBuffer);
+        exit(EXIT_FAILURE);
+    }
     if(sendBuffer == NULL) {
         printf("Error: malloc failed\n");
         free(sendBuffer);
@@ -204,7 +235,12 @@ void managerReplier(uint8_t code, char* clientPipe){
 
     ssize_t w = write(managerPipe, sendBuffer, sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
     printf("responding with: a");
+    printf("responding with: %s\n",(char*)sendBuffer);
+
+    ssize_t w = write(managerPipe, sendBuffer, sizeof(uint8_t) + sizeof(uint32_t) + sizeof(char[1024]));
+    printf("responding with: a");
     free(sendBuffer);
+
 
     if (w < 0) {    
         printf("aqui\n");                                                                  //maybe remove
@@ -221,6 +257,7 @@ void manageCreate(char* clientPipe, char* boxName){
     int f = tfs_open(file, TFS_O_CREAT);
     if (f == -1){
         printf("file cant be opened\n");
+        printf("file cant be opened\n");
     }
     addBox(&boxes,file);
     printf("Boxed\n");
@@ -235,7 +272,11 @@ void manageRemove(char* clientPipe, char* boxName){
     if(tfs_open(file, 0) == -1){
         printf("file cant be opened so it cant be removed\n");
     }
+    if(tfs_open(file, 0) == -1){
+        printf("file cant be opened so it cant be removed\n");
+    }
     tfs_unlink(file);
+    removeBox(&boxes, file);
     removeBox(&boxes, file);
     printf("ayo unBoxed\n");
     managerReplier(6, clientPipe);
@@ -327,6 +368,7 @@ int main(int argc, char **argv) {
 
     int receivingPipe = open(argv[1], O_RDWR);
     signal(SIGPIPE, SIG_IGN);
+    while (ended) { //ver para sigint quando se da ctrl c na mbroker
     while (ended) { //ver para sigint quando se da ctrl c na mbroker
         uint8_t code = 0;
         ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));

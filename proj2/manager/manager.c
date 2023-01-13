@@ -64,16 +64,11 @@ int main(int argc, char **argv) {
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-
         close(mbroker_pipe);
-
         int receivingPipe = open(argv[1], O_RDONLY);
-        
-       
         uint8_t code;
         int32_t returnCode;
         char error[1024];
-
         ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
         readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
         readBytes += read(receivingPipe, error, sizeof(char[1024]));
@@ -83,7 +78,6 @@ int main(int argc, char **argv) {
             fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-
         close(receivingPipe);
         if (returnCode == -1){
             fprintf(stdout,"ERROR %s\n",error);

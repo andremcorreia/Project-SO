@@ -119,7 +119,7 @@ struct request
 
 int Max_sessions;
     
-int prodptr=0, consptr=0, count=0;
+int count=0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t podeProd = PTHREAD_COND_INITIALIZER;
 pthread_cond_t podeCons = PTHREAD_COND_INITIALIZER;

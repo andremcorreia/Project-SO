@@ -75,12 +75,13 @@ int main(int argc, char **argv) {
         if (fgets(message, sizeof(message), stdin) != NULL)
         {
             message[strcspn(message, "\n")] = 0;
-            ssize_t w = write(pipe_self, message, sizeof(message)-1);
+            ssize_t w = write(pipe_self, message, sizeof(message));
             if(w == 100000000000000000){
                 return -1;
             }
         }
     }
+    printf("bye\n");
     close(pipe_self);
     return 0;
 }

@@ -23,7 +23,7 @@ static void sig_handler(int signum){
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    fprintf(stderr, "usage: sub <register_pipe_name> <pipe_name> <box_name>\n");
+    //fprintf(stderr, "usage: sub <register_pipe_name> <pipe_name> <box_name>\n");
 
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
         fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1], strerror(errno));
@@ -63,22 +63,28 @@ int main(int argc, char **argv) {
     close(mbroker_pipe);
 
     int count = 0;
+    int receivingPipe = open(argv[1], O_RDONLY);
     while (active)
     {
-        int receivingPipe = open(argv[1], O_RDONLY);
         uint8_t code;
         char message[1024];
         ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
         if (readBytes !=0){
-            count++;
             readBytes += read(receivingPipe, message, sizeof(char[1024]));
-            fprintf(stdout, "%s\n", message);
-            close(receivingPipe);
+            char *temp = message;
+            int len = (int)strlen(message);
+            while (len != 0) {
+                count++;
+                fprintf(stdout, "%.*s\n", len, temp);
+                temp += len + 1;
+                len = (int)strlen(temp);
+            }
         }
         else{
             active = false;
         }
     }
+    close(receivingPipe);
     fprintf(stdout, "%d\n", count);
     return 0;
 }

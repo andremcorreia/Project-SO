@@ -96,9 +96,6 @@ int pcq_enqueue(pc_queue_t *queue, void *elem){
 void *pcq_dequeue(pc_queue_t *queue){
     int rc = 0;
     void *elem = NULL;
-    if (pcq_is_empty(queue)) {
-        return NULL;
-    }
     pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
     while (queue->pcq_current_size == 0) {
         rc = pthread_cond_wait(&queue->pcq_popper_condvar, &queue->pcq_popper_condvar_lock);

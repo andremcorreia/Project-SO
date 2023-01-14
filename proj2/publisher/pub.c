@@ -76,8 +76,8 @@ int main(int argc, char **argv) {
         {
             message[strcspn(message, "\n")] = 0;
             ssize_t w = write(pipe_self, message, sizeof(message));
-            if(w == 100000000000000000){
-                return -1;
+            if(w == -1){
+                break;
             }
         }
     }

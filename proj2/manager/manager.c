@@ -18,6 +18,19 @@
                     "   manager <register_pipe_name> <pipe_name> list\n");
 }*/
 
+struct box {
+    char box_name[32];
+    uint64_t box_size;
+    uint64_t n_publishers;
+    uint64_t n_subscribers;
+};
+
+int compare(const void* a, const void* b) {
+    struct box* boxA = (struct box*) a;
+    struct box* boxB = (struct box*) b;
+    return strcmp(boxA->box_name, boxB->box_name);
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -73,7 +86,6 @@ int main(int argc, char **argv) {
         readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
         readBytes += read(receivingPipe, error, sizeof(char[1024]));
          if (readBytes == -1) {
-            printf("yo\n");
             // ret == -1 signals error
             fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
@@ -87,9 +99,74 @@ int main(int argc, char **argv) {
         }
         return returnCode;
     }
-    else if (strcmp(mode, "list"))
+    else if (!strcmp(mode, "list"))
     {
-        //later
+        uint8_t sendCode = 7;
+        int mbroker_pipe = open(argv[2], O_WRONLY);
+
+        void* register_buffer;
+        
+        register_buffer = malloc(sizeof(uint8_t) + sizeof(char[256]));
+        if(register_buffer == NULL) {
+            printf("Error: malloc failed\n");
+            free(register_buffer);
+            exit(EXIT_FAILURE);
+        }
+        memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]));
+        memcpy(register_buffer, &sendCode, sizeof(uint8_t));
+        memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
+
+        ssize_t w = write(mbroker_pipe, register_buffer, sizeof(uint8_t) + sizeof(char[256]));
+        free(register_buffer);
+        if (w < 0) {                                                                      //maybe remove
+            fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        close(mbroker_pipe);
+
+        uint8_t last = (uint8_t)0;
+        int receivingPipe = open(argv[1], O_RDONLY);
+        struct box* boxes = NULL;
+        int counter = 0;
+        while (!last)
+        {
+            uint8_t code;
+            char box_name[32];
+            uint64_t box_size;
+            uint64_t n_publishers;
+            uint64_t n_subscribers;
+
+            ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+            readBytes += read(receivingPipe, &last, sizeof(uint8_t));
+            readBytes += read(receivingPipe, box_name, sizeof(char[32]));
+            readBytes += read(receivingPipe, &box_size, sizeof(uint64_t));
+            readBytes += read(receivingPipe, &n_publishers, sizeof(uint64_t));
+            readBytes += read(receivingPipe, &n_subscribers, sizeof(uint64_t));
+
+            if (last && strlen(box_name) == 0)
+            {
+                fprintf(stdout,"NO BOXES FOUND\n");
+            }
+            else
+            {
+                struct box newBox;
+                memcpy(newBox.box_name, box_name, sizeof(char[32]));
+                newBox.box_size = box_size;
+                newBox.n_publishers = n_publishers;
+                newBox.n_subscribers = n_subscribers;
+                counter++;
+                boxes = realloc(boxes, (size_t)counter * sizeof(struct box));
+                boxes[counter - 1] = newBox;
+            }
+        }
+        qsort(boxes, (size_t)counter, sizeof(struct box), compare);
+
+        for (int i = 0; i < counter; i++) {
+            fprintf(stdout, "%s %zu %zu %zu\n", boxes[i].box_name, boxes[i].box_size, boxes[i].n_publishers, boxes[i].n_subscribers);
+        }
+        close(receivingPipe);
+        free(boxes);
+        
     }
     return 0;
 }

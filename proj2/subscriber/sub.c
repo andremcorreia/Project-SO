@@ -69,6 +69,9 @@ int main(int argc, char **argv) {
         uint8_t code;
         char message[1024];
         ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
+        if (!active)    //to stop it from repeating last line after SIGINT
+            break;
+        
         if (readBytes !=0){
             readBytes += read(receivingPipe, message, sizeof(char[1024]));
             char *temp = message;

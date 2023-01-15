@@ -18,6 +18,12 @@
                     "   manager <register_pipe_name> <pipe_name> list\n");
 }*/
 
+void cleanPipe(char* pipe){
+    if (unlink(pipe) != 0 && errno != ENOENT) {
+        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", pipe, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
 struct box {
     char box_name[32];
     uint64_t box_size;
@@ -41,10 +47,7 @@ int main(int argc, char **argv) {
     char* mode = argv[3];
     size_t size = sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]);
 
-    if (unlink(argv[1]) != 0 && errno != ENOENT) {
-        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1], strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    cleanPipe(argv[1]);
 
     // Create pipe
     if (mkfifo(argv[1], 0666) != 0) { // permissions changed to allow read and write for all users
@@ -53,9 +56,9 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(mode, "create") || !strcmp(mode, "remove"))
     {
-        uint8_t sendCode = 3;
+        uint8_t send_code = 3;
         if (!strcmp(mode, "remove"))
-            sendCode = 5;
+            send_code = 5;
         int mbroker_pipe = open(argv[2], O_WRONLY);
 
         void* register_buffer;
@@ -64,10 +67,11 @@ int main(int argc, char **argv) {
         if(register_buffer == NULL) {
             printf("Error: malloc failed\n");
             free(register_buffer);
+            cleanPipe(argv[1]);
             exit(EXIT_FAILURE);
         }
         memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-        memcpy(register_buffer, &sendCode, sizeof(uint8_t));
+        memcpy(register_buffer, &send_code, sizeof(uint8_t));
         memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
         memcpy(register_buffer + sizeof(char[256]) + sizeof(uint8_t), argv[4], sizeof(char[32]));
 
@@ -75,33 +79,35 @@ int main(int argc, char **argv) {
         free(register_buffer);
         if (w < 0) {                                                                      //maybe remove
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
+            cleanPipe(argv[1]);
             exit(EXIT_FAILURE);
         }
         close(mbroker_pipe);
-        int receivingPipe = open(argv[1], O_RDONLY);
+        int self_pipe = open(argv[1], O_RDONLY);
         uint8_t code;
-        int32_t returnCode;
+        int32_t return_code;
         char error[1024];
-        ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
-        readBytes += read(receivingPipe, &returnCode, sizeof(int32_t));
-        readBytes += read(receivingPipe, error, sizeof(char[1024]));
+        ssize_t readBytes = read(self_pipe, &code, sizeof(uint8_t));
+        readBytes += read(self_pipe, &return_code, sizeof(int32_t));
+        readBytes += read(self_pipe, error, sizeof(char[1024]));
          if (readBytes == -1) {
             // ret == -1 signals error
             fprintf(stderr, "[ERR]: read failed: %s\n", strerror(errno));
+            cleanPipe(argv[1]);
             exit(EXIT_FAILURE);
         }
-        close(receivingPipe);
-        if (returnCode == -1){
+        close(self_pipe);
+        if (return_code == -1){
             fprintf(stdout,"ERROR %s\n",error);
         } else
         {
             fprintf(stdout, "OK\n");
         }
-        return returnCode;
+        return return_code;
     }
     else if (!strcmp(mode, "list"))
     {
-        uint8_t sendCode = 7;
+        uint8_t send_code = 7;
         int mbroker_pipe = open(argv[2], O_WRONLY);
 
         void* register_buffer;
@@ -110,22 +116,24 @@ int main(int argc, char **argv) {
         if(register_buffer == NULL) {
             printf("Error: malloc failed\n");
             free(register_buffer);
+            cleanPipe(argv[1]);
             exit(EXIT_FAILURE);
         }
         memset(register_buffer,0, sizeof(uint8_t) + sizeof(char[256]));
-        memcpy(register_buffer, &sendCode, sizeof(uint8_t));
+        memcpy(register_buffer, &send_code, sizeof(uint8_t));
         memcpy(register_buffer + sizeof(uint8_t), argv[1], sizeof(char[256]));
 
         ssize_t w = write(mbroker_pipe, register_buffer, sizeof(uint8_t) + sizeof(char[256]));
         free(register_buffer);
         if (w < 0) {                                                                      //maybe remove
             fprintf(stderr, "[ERR]: write failed: %s\n", strerror(errno));
+            cleanPipe(argv[1]);
             exit(EXIT_FAILURE);
         }
         close(mbroker_pipe);
 
         uint8_t last = (uint8_t)0;
-        int receivingPipe = open(argv[1], O_RDONLY);
+        int self_pipe = open(argv[1], O_RDONLY);
         struct box* boxes = NULL;
         int counter = 0;
         while (!last)
@@ -136,12 +144,12 @@ int main(int argc, char **argv) {
             uint64_t n_publishers;
             uint64_t n_subscribers;
 
-            ssize_t readBytes = read(receivingPipe, &code, sizeof(uint8_t));
-            readBytes += read(receivingPipe, &last, sizeof(uint8_t));
-            readBytes += read(receivingPipe, box_name, sizeof(char[32]));
-            readBytes += read(receivingPipe, &box_size, sizeof(uint64_t));
-            readBytes += read(receivingPipe, &n_publishers, sizeof(uint64_t));
-            readBytes += read(receivingPipe, &n_subscribers, sizeof(uint64_t));
+            ssize_t readBytes = read(self_pipe, &code, sizeof(uint8_t));
+            readBytes += read(self_pipe, &last, sizeof(uint8_t));
+            readBytes += read(self_pipe, box_name, sizeof(char[32]));
+            readBytes += read(self_pipe, &box_size, sizeof(uint64_t));
+            readBytes += read(self_pipe, &n_publishers, sizeof(uint64_t));
+            readBytes += read(self_pipe, &n_subscribers, sizeof(uint64_t));
 
             if (last && strlen(box_name) == 0)
             {
@@ -164,8 +172,9 @@ int main(int argc, char **argv) {
         for (int i = 0; i < counter; i++) {
             fprintf(stdout, "%s %zu %zu %zu\n", boxes[i].box_name, boxes[i].box_size, boxes[i].n_publishers, boxes[i].n_subscribers);
         }
-        close(receivingPipe);
+        close(self_pipe);
         free(boxes);
+        cleanPipe(argv[1]);
         
     }
     return 0;

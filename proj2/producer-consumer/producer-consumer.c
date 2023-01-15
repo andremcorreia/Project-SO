@@ -14,6 +14,8 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#include <stdio.h> //delete
+
 bool pcq_is_empty(pc_queue_t *queue) {
     bool is_empty;
     pthread_mutex_lock(&queue->pcq_current_size_lock);
@@ -28,6 +30,7 @@ bool pcq_is_full(pc_queue_t *queue) {
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
     return is_full;
 }
+int thread_count = 0;
 
 int pcq_create(pc_queue_t *queue, size_t capacity){
 
@@ -51,9 +54,12 @@ int pcq_create(pc_queue_t *queue, size_t capacity){
 }
 
 int pcq_destroy(pc_queue_t *queue){
-
     free(queue->pcq_buffer);
-
+    pthread_cond_broadcast(&queue->pcq_popper_condvar); //signal for threads to leave deqeue
+    printf("casted\n");
+    sleep(5);
+    printf("casted\n");
+    //while (thread_count > 1){sleep(1);printf("loooooooooooooooooooooop\n");} //wait for threads to leave deqeue
     pthread_mutex_destroy(&queue->pcq_current_size_lock);
     pthread_mutex_destroy(&queue->pcq_head_lock);
     pthread_mutex_destroy(&queue->pcq_tail_lock);
@@ -97,29 +103,28 @@ void *pcq_dequeue(pc_queue_t *queue){
     int rc = 0;
     void *elem = NULL;
     void *copy = NULL;
+    thread_count++;
     pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
     while (queue->pcq_current_size == 0) {
         rc = pthread_cond_wait(&queue->pcq_popper_condvar, &queue->pcq_popper_condvar_lock);
-        if (rc != 0) {
+        //printf("%d\n",thread_count);
+        if (rc != 0 || pcq_is_empty(queue)) {
+            thread_count--;
             pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
             return NULL;
         }
     }
-
+    thread_count--;
     pthread_mutex_lock(&queue->pcq_tail_lock);
     elem = queue->pcq_buffer[queue->pcq_tail];
     queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
     pthread_mutex_unlock(&queue->pcq_tail_lock);
-
     pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size--;
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
-
     pthread_cond_signal(&queue->pcq_pusher_condvar);
     pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
-
     copy = malloc(sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
     memcpy(copy, elem, sizeof(uint8_t) + sizeof(char[256]) + sizeof(char[32]));
-
     return copy;
 }

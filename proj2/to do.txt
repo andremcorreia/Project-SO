@@ -1,9 +1,2 @@
-1-decrease prod e subs com list( not tested)
-2-2 pubs msm caixa
-3-pub caixa n existe 
-4- same sub
-5- no server?
-6-ctrl-C sub da count
-7- caixa removida apaga sessions 
-8- overload sessions
-9- pub crtl d (EOF)
+--- sub counter needs msg update from pub
+---pub so sai quando escreve
